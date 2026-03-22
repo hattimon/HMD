@@ -1261,7 +1261,7 @@ EOF
           <div class="metric-sub">dBi</div>
         </div>
         <div class="card mini">
-          <div class="metric-title" data-i18n="hotspotElevation">Wysokość</div>
+          <div class="metric-title" data-i18n="hotspotElevation">WysokoĹ›Ä‡</div>
           <div class="metric-value" id="hotspotElev">-</div>
           <div class="metric-sub" data-i18n="meters">metry n.p.m.</div>
         </div>
@@ -1318,7 +1318,7 @@ const i18n = {
     hotspotWallet: "Portfel",
     hotspotLocation: "Lokalizacja",
     hotspotGain: "Gain",
-    hotspotElevation: "Wysokość",
+    hotspotElevation: "WysokoĹ›Ä‡",
     hotspotRewardable: "Zarabia",
     hotspotNetworks: "Sieci",
     meters: "metry n.p.m.",
