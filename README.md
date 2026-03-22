@@ -1,4 +1,4 @@
-﻿# HMD — Helium Miner Dashboards
+# HMD — Helium Miner Dashboards
 
 Lightweight, self-hosted dashboards for Helium miners on different vendors.
 This repository will grow with dashboards for other devices (e.g. SenseCap).
