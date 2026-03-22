@@ -1261,7 +1261,7 @@ EOF
           <div class="metric-sub">dBi</div>
         </div>
         <div class="card mini">
-          <div class="metric-title" data-i18n="hotspotElevation">WysokoĹ›Ä‡</div>
+          <div class="metric-title" data-i18n="hotspotElevation">Wysokość</div>
           <div class="metric-value" id="hotspotElev">-</div>
           <div class="metric-sub" data-i18n="meters">metry n.p.m.</div>
         </div>
@@ -1288,7 +1288,7 @@ EOF
 <script>
 const i18n = {
   pl: {
-    summary: "Podsumowanie",
+    summary: "📊 Podsumowanie",
     beaconsSent: "Beacony wyslane",
     beaconsReceived: "Beacony odebrane",
     witnesses: "Swiadkowie",
@@ -1300,16 +1300,16 @@ const i18n = {
     allDevices: "Wszystkie urzadzenia",
     showTech: "Techniczne",
     showErrors: "Bledy",
-    activityChart: "Aktywnosc (TX/RX/Swiadek)",
-    rfStats: "RF Statystyki",
+    activityChart: "📈 Aktywnosc (TX/RX/Swiadek)",
+    rfStats: "📡 RF Statystyki",
     rssiTrend: "Trend RSSI",
     snrTrend: "Trend SNR",
-    events: "Zdarzenia",
-    beacons: "Beacony",
+    events: "🧾 Zdarzenia",
+    beacons: "📍 Beacony",
     beaconDetail: "Zdarzenia beacona",
-    devices: "Urzadzenia",
+    devices: "🧩 Urzadzenia",
     devicesNote: "Alias = Twoja nazwa dla MAC (pokazuje sie w Zdarzeniach).",
-    hotspotTitle: "Hotspot Info",
+    hotspotTitle: "🛰️ Hotspot Info",
     hotspotNote: "Entity API (oficjalne, bez klucza). Stare api.helium.io/v1 jest wylaczone. 404 oznacza brak hotspotu NFT.",
     dataNote: "Dane lokalne: logi gateway-rs + panel Heltec. Dane sieciowe: Entity API (bez klucza).",
     hotspotRefresh: "Odswiez",
@@ -1318,7 +1318,7 @@ const i18n = {
     hotspotWallet: "Portfel",
     hotspotLocation: "Lokalizacja",
     hotspotGain: "Gain",
-    hotspotElevation: "WysokoĹ›Ä‡",
+    hotspotElevation: "Wysokość",
     hotspotRewardable: "Zarabia",
     hotspotNetworks: "Sieci",
     meters: "metry n.p.m.",
@@ -1344,7 +1344,7 @@ const i18n = {
     allTime: "caly okres",
   },
   en: {
-    summary: "Summary",
+    summary: "📊 Summary",
     beaconsSent: "Beacons sent",
     beaconsReceived: "Beacons received",
     witnesses: "Witnesses",
@@ -1356,16 +1356,16 @@ const i18n = {
     allDevices: "All devices",
     showTech: "Technical",
     showErrors: "Errors",
-    activityChart: "Activity (TX/RX/Witness)",
-    rfStats: "RF Stats",
+    activityChart: "📈 Activity (TX/RX/Witness)",
+    rfStats: "📡 RF Stats",
     rssiTrend: "RSSI trend",
     snrTrend: "SNR trend",
-    events: "Events",
-    beacons: "Beacons",
+    events: "🧾 Events",
+    beacons: "📍 Beacons",
     beaconDetail: "Beacon events",
-    devices: "Devices",
+    devices: "🧩 Devices",
     devicesNote: "Alias = your label for MAC (shown in Events).",
-    hotspotTitle: "Hotspot Info",
+    hotspotTitle: "🛰️ Hotspot Info",
     hotspotNote: "Entity API (official, no key). Legacy api.helium.io/v1 is disabled. 404 means no hotspot NFT.",
     dataNote: "Local data: gateway-rs logs + Heltec panel. Network data: Entity API (no key).",
     hotspotRefresh: "Refresh",
