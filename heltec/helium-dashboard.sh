@@ -6,6 +6,7 @@ set -euo pipefail
 
 BASE_DIR="/opt/helium-dashboard"
 LOG_PATH="/var/log/gateway_config/console.log"
+RAW_BASE_URL="${RAW_BASE_URL:-https://raw.githubusercontent.com/hattimon/HMD/main}"
 
 IMG_PARSER="helium-dashboard-parser"
 IMG_API="helium-dashboard-api"
@@ -69,6 +70,10 @@ t() {
         auth_pass)         echo "Haslo do panelu:";;
         auth_empty)        echo "Haslo nie moze byc puste, gdy ustawiasz login.";;
         auth_missing_ssl)  echo "Brak openssl - nie moge utworzyc hasla. Zainstaluj openssl i sprobuj ponownie.";;
+        fetching_audio)    echo "Pobieranie plikow audio z GitHuba...";;
+        audio_ok)          echo "Plik audio pobrany:";;
+        audio_fail)        echo "Nie udalo sie pobrac pliku audio:";;
+        audio_note)        echo "Dzwieki beda niedostepne (panel nadal dziala).";;
       esac ;;
     *) case "$key" in
         welcome)           echo "Helium Miner Dashboard - installer";;
@@ -100,6 +105,10 @@ t() {
         auth_pass)         echo "Panel password:";;
         auth_empty)        echo "Password cannot be empty when username is set.";;
         auth_missing_ssl)  echo "openssl not found - cannot generate password. Install openssl and retry.";;
+        fetching_audio)    echo "Downloading audio files from GitHub...";;
+        audio_ok)          echo "Audio file downloaded:";;
+        audio_fail)        echo "Failed to download audio file:";;
+        audio_note)        echo "Sounds will be unavailable (dashboard still works).";;
       esac ;;
   esac
 }
@@ -1098,6 +1107,8 @@ EOF
           <option value="pl">PL</option>
           <option value="en">EN</option>
         </select>
+        <label class="chip"><input id="autoLiveToggle" type="checkbox"><span data-i18n="autoLive">Auto nowe zdarzenia</span></label>
+        <label class="chip"><input id="soundEnabledToggle" type="checkbox"><span data-i18n="soundEnabled">Dzwiek</span></label>
         <button id="themeToggle" data-i18n="theme">Motyw</button>
         <button id="refreshBtn">Refresh</button>
         <button id="logoutBtn" data-i18n="logout">Wyloguj</button>
@@ -1401,6 +1412,8 @@ const i18n = {
     daysShort: "dni",
     hoursShort: "godz.",
     apply: "Zastosuj",
+    autoLive: "Auto nowe zdarzenia",
+    soundEnabled: "Dzwiek",
   },
   en: {
     summary: "📊 Summary",
@@ -1461,6 +1474,8 @@ const i18n = {
     daysShort: "days",
     hoursShort: "hrs",
     apply: "Apply",
+    autoLive: "Auto new events",
+    soundEnabled: "Sound",
   }
 };
 
@@ -1472,6 +1487,11 @@ let state = {
   range: localStorage.getItem("range") || "24h",
   customDays: Math.max(0, parseInt(localStorage.getItem("customDays") || "0", 10) || 0),
   customHours: Math.max(0, parseInt(localStorage.getItem("customHours") || "0", 10) || 0),
+  autoLive: localStorage.getItem("autoLive") !== "0",
+  soundEnabled: localStorage.getItem("soundEnabled") !== "0",
+  lastSignalKey: localStorage.getItem("lastSignalKey") || "",
+  liveTimer: null,
+  refreshBusy: false,
   type: "",
   mac: "",
   showTech: localStorage.getItem("showTech") === "1",
@@ -1578,6 +1598,13 @@ function setFilters(){
   localStorage.setItem("showErrors", state.showErrors ? "1" : "0");
 }
 
+function setLiveOptions(){
+  $("autoLiveToggle").checked = state.autoLive;
+  $("soundEnabledToggle").checked = state.soundEnabled;
+  localStorage.setItem("autoLive", state.autoLive ? "1" : "0");
+  localStorage.setItem("soundEnabled", state.soundEnabled ? "1" : "0");
+}
+
 function rangeFrom(){
   if(state.range === "all" || state.range === "max") return null;
   const now = new Date();
@@ -1653,6 +1680,87 @@ function rfFromRaw(raw){
   const freq = freqM ? Number(freqM[1]) : null;
   const len = lenM ? Number(lenM[1]) : null;
   return {snr, rssi, freq, len};
+}
+
+function isSignalEvent(r){
+  if (!r || !r.type) return false;
+  return r.type === "beacon_rx" ||
+         r.type === "witness_report" ||
+         r.type === "beacon_tx" ||
+         r.type === "beacon_tx_report" ||
+         r.type === "beacon_tx_gateway";
+}
+
+function isMonetizedEvent(r){
+  if (!r || !r.type) return false;
+  return r.type === "witness_report" || r.type === "beacon_tx_report";
+}
+
+function signalEventKey(r){
+  return `${r.ts || ""}|${r.type || ""}|${r.beacon_id || ""}|${r.mac || ""}`;
+}
+
+function playSound(url){
+  if (!state.soundEnabled) return;
+  try {
+    const a = new Audio(url);
+    a.preload = "auto";
+    const p = a.play();
+    if (p && typeof p.catch === "function") p.catch(()=>{});
+  } catch(e){}
+}
+
+function playEventSounds(events){
+  if (!state.soundEnabled || !events || !events.length) return;
+  const burst = events.slice(-5);
+  let delay = 0;
+  burst.forEach(ev => {
+    setTimeout(()=>playSound("/audio/new.wav"), delay);
+    delay += 240;
+    if (isMonetizedEvent(ev)) {
+      setTimeout(()=>playSound("/audio/cash.mp3"), delay);
+      delay += 240;
+    }
+  });
+}
+
+async function pollForNewSignals(){
+  if (!state.autoLive || state.refreshBusy) return;
+  try {
+    const data = await api("/events?limit=40", 5000);
+    const rows = (data && data.rows) ? data.rows : [];
+    const signals = rows.filter(isSignalEvent);
+    if (!signals.length) return;
+    const newest = signalEventKey(signals[0]);
+    if (!state.lastSignalKey) {
+      state.lastSignalKey = newest;
+      localStorage.setItem("lastSignalKey", state.lastSignalKey);
+      return;
+    }
+    if (newest === state.lastSignalKey) return;
+
+    const fresh = [];
+    for (const ev of signals) {
+      const k = signalEventKey(ev);
+      if (k === state.lastSignalKey) break;
+      fresh.push(ev);
+    }
+    state.lastSignalKey = newest;
+    localStorage.setItem("lastSignalKey", state.lastSignalKey);
+    if (fresh.length) {
+      await refreshAll();
+      playEventSounds(fresh.reverse());
+    }
+  } catch(e){}
+}
+
+function restartLiveWatcher(){
+  if (state.liveTimer) {
+    clearInterval(state.liveTimer);
+    state.liveTimer = null;
+  }
+  if (!state.autoLive) return;
+  state.liveTimer = setInterval(()=>{ pollForNewSignals(); }, 10000);
 }
 
 function isAddr(s){
@@ -2286,6 +2394,9 @@ async function loadLocalInfo(){
 }
 
 async function refreshAll(){
+  if (state.refreshBusy) return;
+  state.refreshBusy = true;
+  try {
   $("eventDetail").textContent = "-";
   $("beaconDetail").textContent = "-";
   const safe = async (fn) => {
@@ -2306,6 +2417,9 @@ async function refreshAll(){
   $("statusLine").innerHTML = ok
     ? `<span class="status-dot ok"></span>${t("updated")}: ${new Date().toLocaleString()}`
     : `<span class="status-dot bad"></span>${t("apiOffline")}`;
+  } finally {
+    state.refreshBusy = false;
+  }
 }
 
 window.addEventListener("resize", ()=>{
@@ -2371,6 +2485,17 @@ document.getElementById("showErrors").addEventListener("change", e=>{
   refreshAll();
 });
 
+document.getElementById("autoLiveToggle").addEventListener("change", e=>{
+  state.autoLive = e.target.checked;
+  setLiveOptions();
+  restartLiveWatcher();
+});
+
+document.getElementById("soundEnabledToggle").addEventListener("change", e=>{
+  state.soundEnabled = e.target.checked;
+  setLiveOptions();
+});
+
 document.getElementById("refreshBtn").addEventListener("click", refreshAll);
 document.getElementById("logoutBtn").addEventListener("click", ()=>{
   const url = "/logout?ts=" + Date.now();
@@ -2400,14 +2525,46 @@ setTheme();
 setLang();
 setRange();
 setFilters();
+setLiveOptions();
 document.getElementById("hotspotBtn").addEventListener("click", () => loadHotspot(true));
 loadLocalInfo().then(() => loadHotspot(false));
 refreshAll();
+restartLiveWatcher();
+setTimeout(()=>{ pollForNewSignals(); }, 4000);
 setInterval(refreshAll, 60000);
 </script>
 </body>
 </html>
 HTMLEOF
+}
+
+download_audio_assets() {
+  section "$(t fetching_audio)"
+  mkdir -p "$BASE_DIR/ui/www/audio"
+  local files=("new.wav" "cash.mp3")
+  local any_ok=0
+  local f
+  for f in "${files[@]}"; do
+    local url="${RAW_BASE_URL}/audio/${f}"
+    if command -v curl >/dev/null 2>&1; then
+      if curl -fsSL --connect-timeout 5 --max-time 20 "$url" -o "$BASE_DIR/ui/www/audio/${f}"; then
+        ok "$(t audio_ok) ${f}"
+        any_ok=1
+        continue
+      fi
+    fi
+    if command -v wget >/dev/null 2>&1; then
+      if wget -q -T 20 -O "$BASE_DIR/ui/www/audio/${f}" "$url"; then
+        ok "$(t audio_ok) ${f}"
+        any_ok=1
+        continue
+      fi
+    fi
+    warn "$(t audio_fail) ${f}"
+  done
+  if [[ "$any_ok" -eq 0 ]]; then
+    warn "$(t audio_note)"
+  fi
 }
 
 print_ips() {
@@ -2478,6 +2635,7 @@ do_install() {
   section "$(t installing)"
   mkdir -p "$BASE_DIR"
   create_files
+  download_audio_assets
 
   section "$(t building_images)"
   docker build -t "$IMG_PARSER" "$BASE_DIR/parser"
