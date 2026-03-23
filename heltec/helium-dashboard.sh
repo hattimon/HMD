@@ -253,10 +253,10 @@ def classify(msg, raw=""):
         m=re.search(r'downlink_mac=([0-9A-Fa-f:]+)',msg); mac=m.group(1) if m else None
         if not mac:
             m=re.search(r'downlink_mac=([0-9A-Fa-f:]+)',raw); mac=m.group(1) if m else None
-        v = grab(r'(\\d+)\\s*MHz'); freq=int(v) if v else None
-        v = grab(r'snr:\\s*([-0-9.]+)'); snr=float(v) if v else None
-        v = grab(r'rssi:\\s*([-0-9.]+)'); rssi=int(float(v)) if v else None
-        v = grab(r'len:\\s*(\\d+)'); length=int(v) if v else None
+        v = grab(r'(\d+)\s*MHz'); freq=int(v) if v else None
+        v = grab(r'snr:\s*([-0-9.]+)'); snr=float(v) if v else None
+        v = grab(r'rssi:\s*([-0-9.]+)'); rssi=int(float(v)) if v else None
+        v = grab(r'len:\s*(\d+)'); length=int(v) if v else None
     elif "beacon transmitted" in msg:
         t="beacon_tx_gateway"
         m=re.search(r'beacon_id=\"?([^\"\\s]+)\"?',msg); bid=m.group(1) if m else None
@@ -745,9 +745,9 @@ class H(BaseHTTPRequestHandler):
             snr = float(m.group(1)) if m else None
             m = re.search(r'rssi:\s*([-0-9.]+)', s, re.IGNORECASE)
             rssi = int(float(m.group(1))) if m else None
-            m = re.search(r'(\\d+)\\s*MHz', s, re.IGNORECASE)
+            m = re.search(r'(\d+)\s*MHz', s, re.IGNORECASE)
             freq = int(m.group(1)) if m else None
-            m = re.search(r'len:\s*(\\d+)', s, re.IGNORECASE)
+            m = re.search(r'len:\s*(\d+)', s, re.IGNORECASE)
             ln = int(m.group(1)) if m else None
             if snr is None and rssi is None and freq is None and ln is None:
                 return None
@@ -888,6 +888,9 @@ EOF
       --chip:#0f172a;--shadow:0 10px 30px rgba(2,8,23,.35);
       --note-bg:rgba(56,189,248,.08);--note-border:rgba(56,189,248,.25);--note-text:#bae6fd;
       --scroll-track:#0a1326;--scroll-thumb:#2a3a61;--scroll-thumb-hover:#3b538a;
+      --hero-glow:
+        radial-gradient(900px 440px at 12% -6%, rgba(74,222,128,.30), transparent 62%),
+        radial-gradient(760px 420px at 88% -8%, rgba(96,165,250,.26), transparent 64%);
       --grid:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
       --bg-grad:radial-gradient(800px 500px at 10% -10%, rgba(94,234,212,.25), transparent 60%),
                 radial-gradient(800px 500px at 90% -10%, rgba(96,165,250,.25), transparent 60%),
@@ -901,6 +904,9 @@ EOF
       --chip:#eef2f7;--shadow:0 10px 24px rgba(15,23,42,.08);
       --note-bg:#e6f4ff;--note-border:#93c5fd;--note-text:#0f172a;
       --scroll-track:#dde3ec;--scroll-thumb:#a6b4c7;--scroll-thumb-hover:#8b9bb1;
+      --hero-glow:
+        radial-gradient(800px 380px at 10% -8%, rgba(56,189,248,.14), transparent 66%),
+        radial-gradient(740px 360px at 90% -8%, rgba(34,197,94,.10), transparent 68%);
       --grid:linear-gradient(180deg, rgba(15,23,42,.03), rgba(255,255,255,0));
       --bg-grad:linear-gradient(180deg, #eef1f5 0%, #f3f5f8 55%, #f7f9fb 100%);
     }
@@ -910,6 +916,17 @@ EOF
       background:var(--bg-grad);
       color:var(--fg);
       min-height:100vh;
+      position:relative;
+      isolation:isolate;
+    }
+    body::before{
+      content:"";
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      z-index:-1;
+      background:var(--hero-glow);
+      opacity:.95;
     }
     .container{max-width:1180px;margin:0 auto;padding:28px 18px 60px}
     header{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin-bottom:18px}
@@ -1541,10 +1558,10 @@ function fmtFreq(f){
 
 function rfFromRaw(raw){
   if(!raw) return {};
-  const snrM = /snr:\\s*([-0-9.]+)/i.exec(raw);
-  const rssiM = /rssi:\\s*([-0-9.]+)/i.exec(raw);
-  const freqM = /(\\d+)\\s*MHz/i.exec(raw);
-  const lenM = /len:\\s*(\\d+)/i.exec(raw);
+  const snrM = /snr:\s*([-0-9.]+)/i.exec(raw);
+  const rssiM = /rssi:\s*([-0-9.]+)/i.exec(raw);
+  const freqM = /(\d+)\s*MHz/i.exec(raw);
+  const lenM = /len:\s*(\d+)/i.exec(raw);
   const snr = snrM ? Number(snrM[1]) : null;
   const rssi = rssiM ? Number(rssiM[1]) : null;
   const freq = freqM ? Number(freqM[1]) : null;
