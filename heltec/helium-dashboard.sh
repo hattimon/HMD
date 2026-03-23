@@ -980,7 +980,9 @@ EOF
     .metric-value.long{font-size:12px;word-break:break-all;line-height:1.2}
     .metric-sub{font-size:12px;color:var(--muted);margin-top:6px}
     .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-    .legend{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .legend{display:flex;gap:6px;flex-wrap:nowrap;align-items:center;justify-content:flex-end;min-width:0;flex-shrink:0}
+    .legend .pill{padding:3px 7px;font-size:10.5px;gap:5px;line-height:1}
+    .legend .pill.err{padding:3px 6px}
     .dot{width:10px;height:10px;border-radius:50%}
     .table-wrap{overflow-x:hidden;overflow-y:auto;border-radius:12px;border:1px solid var(--border);-webkit-overflow-scrolling:touch}
     .table-wrap.scroll-x{overflow-x:hidden}
@@ -1011,7 +1013,7 @@ EOF
     .pill.err{background:rgba(248,113,113,.15);border-color:rgba(248,113,113,.3)}
     .pill.info{background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.3)}
     .legend-toggle{cursor:pointer;user-select:none}
-    .legend-toggle input{margin:0;accent-color:var(--accent);width:13px;height:13px}
+    .legend-toggle input{margin:0;accent-color:var(--accent);width:11px;height:11px}
     .legend-toggle.tx input{accent-color:#60a5fa}
     .legend-toggle.rx input{accent-color:#22d3ee}
     .legend-toggle.wit input{accent-color:#f59e0b}
@@ -1038,6 +1040,8 @@ EOF
     .devices-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
     .devices-note{margin-top:6px}
     @media (max-width: 780px){
+      .card-header{align-items:flex-start}
+      .legend{flex-wrap:wrap;justify-content:flex-start;flex-shrink:1}
       .table-wrap{overflow-x:hidden}
       .table-wrap.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
       .table-wrap.scroll-x table{min-width:860px}
