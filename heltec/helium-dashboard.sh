@@ -835,11 +835,9 @@ http {
             return 401;
         }
         location /api/ {
-            rewrite ^/api/(.*)$ /$1 break;
-            set $api_upstream http://127.0.0.1:8000;
-            proxy_pass $api_upstream;
+            proxy_pass http://127.0.0.1:8000/;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host 127.0.0.1;
             proxy_set_header Connection "";
             proxy_connect_timeout 5s;
             proxy_send_timeout 30s;
@@ -859,11 +857,9 @@ http {
         root /usr/share/nginx/html;
         index index.html;
         location /api/ {
-            rewrite ^/api/(.*)$ /$1 break;
-            set $api_upstream http://127.0.0.1:8000;
-            proxy_pass $api_upstream;
+            proxy_pass http://127.0.0.1:8000/;
             proxy_http_version 1.1;
-            proxy_set_header Host $host;
+            proxy_set_header Host 127.0.0.1;
             proxy_set_header Connection "";
             proxy_connect_timeout 5s;
             proxy_send_timeout 30s;
@@ -891,6 +887,7 @@ EOF
       --danger:#f87171;--good:#34d399;
       --chip:#0f172a;--shadow:0 10px 30px rgba(2,8,23,.35);
       --note-bg:rgba(56,189,248,.08);--note-border:rgba(56,189,248,.25);--note-text:#bae6fd;
+      --scroll-track:#0a1326;--scroll-thumb:#2a3a61;--scroll-thumb-hover:#3b538a;
       --grid:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
       --bg-grad:radial-gradient(800px 500px at 10% -10%, rgba(94,234,212,.25), transparent 60%),
                 radial-gradient(800px 500px at 90% -10%, rgba(96,165,250,.25), transparent 60%),
@@ -903,6 +900,7 @@ EOF
       --danger:#ef4444;--good:#16a34a;
       --chip:#eef2f7;--shadow:0 10px 24px rgba(15,23,42,.08);
       --note-bg:#e6f4ff;--note-border:#93c5fd;--note-text:#0f172a;
+      --scroll-track:#dde3ec;--scroll-thumb:#a6b4c7;--scroll-thumb-hover:#8b9bb1;
       --grid:linear-gradient(180deg, rgba(15,23,42,.03), rgba(255,255,255,0));
       --bg-grad:linear-gradient(180deg, #eef1f5 0%, #f3f5f8 55%, #f7f9fb 100%);
     }
@@ -951,9 +949,15 @@ EOF
     .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
     .legend{display:flex;gap:10px;flex-wrap:wrap}
     .dot{width:10px;height:10px;border-radius:50%}
-    .table-wrap{overflow-x:hidden;overflow-y:auto;border-radius:12px;border:1px solid var(--border)}
+    .table-wrap{overflow-x:hidden;overflow-y:auto;border-radius:12px;border:1px solid var(--border);-webkit-overflow-scrolling:touch}
     .table-wrap.scroll-x{overflow-x:hidden}
-    .table-wrap.beacons-wrap{overflow-x:hidden}
+    .table-wrap.events-wrap{max-height:760px}
+    .table-wrap.beacons-wrap{overflow-x:hidden;max-height:500px}
+    .table-wrap,.pre{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) var(--scroll-track)}
+    .table-wrap::-webkit-scrollbar,.pre::-webkit-scrollbar{width:10px;height:10px}
+    .table-wrap::-webkit-scrollbar-track,.pre::-webkit-scrollbar-track{background:var(--scroll-track);border-radius:10px}
+    .table-wrap::-webkit-scrollbar-thumb,.pre::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:10px;border:2px solid var(--scroll-track)}
+    .table-wrap::-webkit-scrollbar-thumb:hover,.pre::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover)}
     table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
     th,td{padding:10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     td.trunc{max-width:240px}
@@ -999,6 +1003,8 @@ EOF
       .table-wrap.scroll-x table{min-width:860px}
       .table-wrap.beacons-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
       .table-wrap.beacons-wrap table{min-width:620px}
+      .table-wrap.events-wrap{max-height:70vh}
+      .table-wrap.beacons-wrap{max-height:58vh}
       .table-wrap.scroll-x th.col-type,
       .table-wrap.scroll-x td.col-type{width:230px}
       .table-wrap.scroll-x td.col-type{overflow:visible}
@@ -1180,7 +1186,7 @@ EOF
           </select>
         </div>
       </div>
-      <div class="table-wrap scroll-x">
+      <div class="table-wrap scroll-x events-wrap">
         <table>
           <thead>
             <tr>
@@ -1430,7 +1436,8 @@ let state = {
 };
 
 const defaultApi = `${location.origin}/api`;
-let apiBase = localStorage.getItem("apiBase") || defaultApi;
+const apiBaseManual = localStorage.getItem("apiBaseManual") === "1";
+let apiBase = apiBaseManual ? (localStorage.getItem("apiBase") || defaultApi) : defaultApi;
 
 function isPrivateHost(h){
   return /^127\\./.test(h) || /^10\\./.test(h) || /^192\\.168\\./.test(h) || /^172\\.(1[6-9]|2\\d|3[0-1])\\./.test(h) || h === "localhost";
@@ -1441,6 +1448,7 @@ try{
   if (isPrivateHost(u.hostname) && !isPrivateHost(location.hostname)){
     apiBase = defaultApi;
     localStorage.removeItem("apiBase");
+    localStorage.removeItem("apiBaseManual");
   }
 }catch(e){}
 
@@ -1499,7 +1507,7 @@ async function api(path, timeoutMs = 6000){
   const to = setTimeout(()=>ctrl.abort(), timeoutMs);
   let res;
   try {
-    res = await fetch(apiBase + path, { cache: "no-store", signal: ctrl.signal });
+    res = await fetch(apiBase + path, { cache: "no-store", credentials: "same-origin", signal: ctrl.signal });
   } finally {
     clearTimeout(to);
   }
@@ -1905,7 +1913,7 @@ async function loadEvents(){
   const params = withRangeParams(new URLSearchParams());
   if (state.type) params.set("type", state.type);
   if (state.mac) params.set("mac", state.mac);
-  params.set("limit", "60");
+  params.set("limit", "200");
   const key = cacheKey("events", params.toString());
   const cached = cacheGet(key, 5*60*1000);
   if (cached) renderEvents(cached);
@@ -1918,7 +1926,7 @@ function renderBeacons(rows){
   rows = (rows || []).filter(r => r && r.beacon_id && String(r.beacon_id).length >= 16);
   const tbody = $("beaconsBody");
   tbody.innerHTML = "";
-  rows.slice(0,30).forEach(r=>{
+  rows.forEach(r=>{
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td class="col-id trunc">${r.beacon_id || "-"}</td>
@@ -2252,6 +2260,11 @@ document.getElementById("apiBaseSave").addEventListener("click", async ()=>{
   if(v){
     apiBase = v;
     localStorage.setItem("apiBase", v);
+    localStorage.setItem("apiBaseManual", "1");
+  } else {
+    apiBase = defaultApi;
+    localStorage.removeItem("apiBase");
+    localStorage.removeItem("apiBaseManual");
   }
   await saveDevices();
   await loadDevices();
