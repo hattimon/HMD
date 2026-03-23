@@ -271,9 +271,12 @@ def classify(msg, raw=""):
         t="start"
     elif "initialized session module" in msg:
         t="session_init"
-    elif "failed to reconnect" in msg or "router error" in msg or "ingest error" in msg:
+    elif ("failed to reconnect" in msg or
+          "failed to get region_params" in msg or
+          "router error" in msg or
+          "ingest error" in msg):
         t="error"
-    elif "new packet forwarder client" in msg:
+    elif "new packet forwarder client" in msg or "mac existed, but IP updated" in msg:
         t="client_connect"
         m=re.search(r'mac=([0-9A-Fa-f:]+)',msg); mac=m.group(1) if m else None
     if t is None:
@@ -1897,25 +1900,26 @@ function renderEvents(data){
   }
   renderRfCharts();
 
-  rows.forEach(r=>{
-    const alias = r.mac && state.devices[r.mac] ? state.devices[r.mac] : "";
-    const macLine = r.mac || "-";
-    const aliasLine = alias ? `<div class="dev-alias">${alias}</div>` : "";
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="col-time">${fmtTs(r.ts)}</td>
-      <td class="col-type"><span class="${typePill(r.type)}"><span class="ico ${typeIcon(r.type)}"></span>${typeLabel(r.type)}${typeMark(r.type)}</span></td>
-      <td class="col-dev"><div>${macLine}</div>${aliasLine}</td>
-      <td class="col-id trunc">${r.beacon_id || "-"}</td>
-      <td class="col-rf">
-        <div class="rf">
-          <span>RSSI: <b>${r.rssi ?? "-"}</b></span>
-          <span>SNR: <b>${r.snr ?? "-"}</b></span>
-          <span>F: <b>${fmtFreq(r.freq)}</b></span>
-          <span>L: <b>${r.len ?? "-"}</b></span>
-        </div>
-      </td>
-    `;
+    rows.forEach(r=>{
+      const alias = r.mac && state.devices[r.mac] ? state.devices[r.mac] : "";
+      const macLine = r.mac || "-";
+      const aliasLine = alias ? `<div class="dev-alias">${alias}</div>` : "";
+      const rfLines = [];
+      if (r.rssi != null) rfLines.push(`<span>RSSI: <b>${r.rssi}</b></span>`);
+      if (r.snr != null) rfLines.push(`<span>SNR: <b>${r.snr}</b></span>`);
+      if (r.freq != null) rfLines.push(`<span>F: <b>${fmtFreq(r.freq)}</b></span>`);
+      if (r.len != null) rfLines.push(`<span>L: <b>${r.len}</b></span>`);
+      const rfHtml = rfLines.length ? rfLines.join("") : `<span>-</span>`;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="col-time">${fmtTs(r.ts)}</td>
+        <td class="col-type"><span class="${typePill(r.type)}"><span class="ico ${typeIcon(r.type)}"></span>${typeLabel(r.type)}${typeMark(r.type)}</span></td>
+        <td class="col-dev"><div>${macLine}</div>${aliasLine}</td>
+        <td class="col-id trunc">${r.beacon_id || "-"}</td>
+        <td class="col-rf">
+        <div class="rf">${rfHtml}</div>
+        </td>
+      `;
     tr.addEventListener("click", ()=>{
       $("eventDetail").textContent = r.raw || "-";
     });
