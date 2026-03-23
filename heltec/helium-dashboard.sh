@@ -938,6 +938,10 @@ EOF
     .status-line{display:flex;align-items:center;gap:8px}
     .section-title{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
     .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0}
+    .custom-range{display:inline-flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid var(--border);background:var(--card);border-radius:10px;box-shadow:var(--shadow)}
+    .custom-range input{width:58px;min-width:0;padding:6px 8px;text-align:center;box-shadow:none}
+    .custom-range .unit{font-size:12px;color:var(--muted);white-space:nowrap}
+    .custom-range[hidden]{display:none!important}
     button,select,input{border:1px solid var(--border);background:var(--card);color:var(--fg);padding:8px 10px;border-radius:10px;font-size:13px;box-shadow:var(--shadow)}
     .controls input{min-width:0}
     button{cursor:pointer}
@@ -1031,6 +1035,9 @@ EOF
       .controls{flex-direction:column;align-items:stretch}
       .controls .chip{justify-content:center}
       .controls button,.controls select{width:100%;text-align:center}
+      .custom-range{width:100%;justify-content:center}
+      .custom-range input{flex:0 1 74px;width:auto}
+      .custom-range button{width:auto}
       #apiBaseInput{max-width:none;width:100%}
       #devicesList input{max-width:none;width:100%}
       .device-row{flex-direction:column;align-items:stretch}
@@ -1078,7 +1085,15 @@ EOF
           <option value="180d">180D</option>
           <option value="1y">1Rok</option>
           <option value="max">Max</option>
+          <option value="custom" data-i18n="customRange">Wlasny</option>
         </select>
+        <div class="custom-range" id="customRangeBox" hidden>
+          <input id="customDaysInput" type="number" min="0" step="1" value="0" inputmode="numeric">
+          <span class="unit" data-i18n="daysShort">dni</span>
+          <input id="customHoursInput" type="number" min="0" step="1" value="0" inputmode="numeric">
+          <span class="unit" data-i18n="hoursShort">godz.</span>
+          <button id="customRangeApply" type="button" data-i18n="apply">Zastosuj</button>
+        </div>
         <select id="langSelect">
           <option value="pl">PL</option>
           <option value="en">EN</option>
@@ -1382,6 +1397,10 @@ const i18n = {
     updated: "Zaktualizowano",
     apiOffline: "API niedostepne",
     allTime: "caly okres",
+    customRange: "Wlasny",
+    daysShort: "dni",
+    hoursShort: "godz.",
+    apply: "Zastosuj",
   },
   en: {
     summary: "📊 Summary",
@@ -1438,6 +1457,10 @@ const i18n = {
     updated: "Updated",
     apiOffline: "API offline",
     allTime: "all time",
+    customRange: "Custom",
+    daysShort: "days",
+    hoursShort: "hrs",
+    apply: "Apply",
   }
 };
 
@@ -1447,6 +1470,8 @@ let state = {
   lang: localStorage.getItem("lang") || "pl",
   theme: localStorage.getItem("theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
   range: localStorage.getItem("range") || "24h",
+  customDays: Math.max(0, parseInt(localStorage.getItem("customDays") || "0", 10) || 0),
+  customHours: Math.max(0, parseInt(localStorage.getItem("customHours") || "0", 10) || 0),
   type: "",
   mac: "",
   showTech: localStorage.getItem("showTech") === "1",
@@ -1465,6 +1490,10 @@ let state = {
 if (state.range === "all") {
   state.range = "max";
   localStorage.setItem("range", "max");
+}
+if (state.range === "custom" && state.customDays === 0 && state.customHours === 0) {
+  state.customHours = 24;
+  localStorage.setItem("customHours", "24");
 }
 
 const defaultApi = `${location.origin}/api`;
@@ -1508,7 +1537,38 @@ function setLang(){
 
 function setRange(){
   localStorage.setItem("range", state.range);
+  localStorage.setItem("customDays", String(state.customDays));
+  localStorage.setItem("customHours", String(state.customHours));
   $("rangeSelect").value = state.range;
+  $("customDaysInput").value = state.customDays;
+  $("customHoursInput").value = state.customHours;
+  $("customRangeBox").hidden = state.range !== "custom";
+}
+
+function customRangeLabel(){
+  const d = Math.max(0, Number(state.customDays) || 0);
+  const h = Math.max(0, Number(state.customHours) || 0);
+  if (d === 0 && h === 0) return "24h";
+  if (d > 0 && h > 0) return `${d}d ${h}h`;
+  if (d > 0) return `${d}d`;
+  return `${h}h`;
+}
+
+function rangeLabel(){
+  if(state.range === "all" || state.range === "max") return t("allTime");
+  if(state.range === "custom") return customRangeLabel();
+  return state.range;
+}
+
+function readCustomRangeInputs(){
+  const daysRaw = parseInt($("customDaysInput").value || "0", 10);
+  const hoursRaw = parseInt($("customHoursInput").value || "0", 10);
+  let days = isFinite(daysRaw) ? Math.max(0, daysRaw) : 0;
+  let hours = isFinite(hoursRaw) ? Math.max(0, hoursRaw) : 0;
+  if (days === 0 && hours === 0) {
+    hours = 24;
+  }
+  return { days, hours };
 }
 
 function setFilters(){
@@ -1521,6 +1581,11 @@ function setFilters(){
 function rangeFrom(){
   if(state.range === "all" || state.range === "max") return null;
   const now = new Date();
+  if(state.range === "custom"){
+    const hours = (Math.max(0, Number(state.customDays) || 0) * 24) + Math.max(0, Number(state.customHours) || 0);
+    const span = hours > 0 ? hours : 24;
+    return new Date(now.getTime() - span*3600*1000);
+  }
   if(state.range === "1h") return new Date(now.getTime() - 1*3600*1000);
   if(state.range === "4h") return new Date(now.getTime() - 4*3600*1000);
   if(state.range === "12h") return new Date(now.getTime() - 12*3600*1000);
@@ -1694,7 +1759,7 @@ function applySummary(s){
   $("sNextBeacon").textContent = s.next_beacon || "-";
   $("regionChip").textContent = `Region: ${s.region || "-"}`;
   $("nextBeaconChip").textContent = `Next beacon: ${s.next_beacon || "-"}`;
-  const rl = (state.range === "all" || state.range === "max") ? t("allTime") : state.range;
+  const rl = rangeLabel();
   $("mTxSub").textContent = rl;
   $("mRxSub").textContent = rl;
   $("mWitSub").textContent = rl;
@@ -2259,8 +2324,29 @@ document.getElementById("themeToggle").addEventListener("click", ()=>{
 
 document.getElementById("rangeSelect").addEventListener("change", e=>{
   state.range = e.target.value;
+  if (state.range === "custom") {
+    const c = readCustomRangeInputs();
+    state.customDays = c.days;
+    state.customHours = c.hours;
+  }
   setRange();
   refreshAll();
+});
+
+document.getElementById("customRangeApply").addEventListener("click", ()=>{
+  const c = readCustomRangeInputs();
+  state.customDays = c.days;
+  state.customHours = c.hours;
+  state.range = "custom";
+  setRange();
+  refreshAll();
+});
+
+document.getElementById("customDaysInput").addEventListener("keydown", (e)=>{
+  if (e.key === "Enter") document.getElementById("customRangeApply").click();
+});
+document.getElementById("customHoursInput").addEventListener("keydown", (e)=>{
+  if (e.key === "Enter") document.getElementById("customRangeApply").click();
 });
 
 document.getElementById("typeSelect").addEventListener("change", e=>{
