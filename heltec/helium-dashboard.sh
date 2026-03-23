@@ -824,9 +824,8 @@ EOF
     cat > "$BASE_DIR/ui/nginx.conf" <<'EOF'
 events {}
 http {
-    resolver 127.0.0.11 ipv6=off;
     server {
-        listen 80;
+        listen 1111;
         server_name _;
         auth_basic "Helium Dashboard";
         auth_basic_user_file /etc/nginx/.htpasswd;
@@ -837,7 +836,7 @@ http {
         }
         location /api/ {
             rewrite ^/api/(.*)$ /$1 break;
-            set $api_upstream http://miner-dashboard-api:8000;
+            set $api_upstream http://127.0.0.1:8000;
             proxy_pass $api_upstream;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
@@ -854,15 +853,14 @@ EOF
     cat > "$BASE_DIR/ui/nginx.conf" <<'EOF'
 events {}
 http {
-    resolver 127.0.0.11 ipv6=off;
     server {
-        listen 80;
+        listen 1111;
         server_name _;
         root /usr/share/nginx/html;
         index index.html;
         location /api/ {
             rewrite ^/api/(.*)$ /$1 break;
-            set $api_upstream http://miner-dashboard-api:8000;
+            set $api_upstream http://127.0.0.1:8000;
             proxy_pass $api_upstream;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
@@ -2353,9 +2351,6 @@ do_install() {
   fi
 
   section "$(t starting_stack)"
-  if ! docker network ls --format '{{.Name}}' | grep -q "^${NET_NAME}$"; then
-    docker network create "$NET_NAME" >/dev/null
-  fi
   docker rm -f "$CTR_PARSER" >/dev/null 2>&1 || true
   docker run -d \
     --name "$CTR_PARSER" \
@@ -2368,8 +2363,7 @@ do_install() {
   docker run -d \
     --name "$CTR_API" \
     --restart unless-stopped \
-    --network "$NET_NAME" \
-    -p 8000:8000 \
+    --network host \
     -v "$VOL_DB":/data \
     "$IMG_API"
 
@@ -2377,8 +2371,7 @@ do_install() {
   docker run -d \
     --name "$CTR_UI" \
     --restart unless-stopped \
-    --network "$NET_NAME" \
-    -p 1111:80 \
+    --network host \
     "$IMG_UI"
 
   ok "Dashboard started."
@@ -2426,4 +2419,3 @@ case "$choice" in
   3|"") exit 0 ;;
   *) err "$(t invalid_choice)"; exit 1 ;;
 esac
-
