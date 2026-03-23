@@ -836,10 +836,15 @@ http {
             return 401;
         }
         location /api/ {
-            proxy_pass http://miner-dashboard-api:8000/;
+            rewrite ^/api/(.*)$ /$1 break;
+            set $api_upstream http://miner-dashboard-api:8000;
+            proxy_pass $api_upstream;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header Connection "";
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
         }
         location / { try_files $uri /index.html; }
     }
@@ -856,10 +861,15 @@ http {
         root /usr/share/nginx/html;
         index index.html;
         location /api/ {
-            proxy_pass http://miner-dashboard-api:8000/;
+            rewrite ^/api/(.*)$ /$1 break;
+            set $api_upstream http://miner-dashboard-api:8000;
+            proxy_pass $api_upstream;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header Connection "";
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
         }
         location / { try_files $uri /index.html; }
     }
@@ -2284,15 +2294,24 @@ print_ips() {
 curl_check() {
   if command -v curl >/dev/null 2>&1; then
     section "$(t curl_check)"
-    if [[ -n "${AUTH_USER}" ]]; then
-      if curl -sSf -u "${AUTH_USER}:${AUTH_PASS}" http://127.0.0.1:1111 >/dev/null 2>&1; then
-        ok "$(t curl_ok)"
+    local attempt=0
+    local success=0
+    while [[ $attempt -lt 20 ]]; do
+      if [[ -n "${AUTH_USER}" ]]; then
+        if curl -sSf --connect-timeout 2 --max-time 5 -u "${AUTH_USER}:${AUTH_PASS}" http://127.0.0.1:1111 >/dev/null 2>&1; then
+          success=1
+          break
+        fi
       else
-        warn "$(t curl_fail)"
+        if curl -sSf --connect-timeout 2 --max-time 5 http://127.0.0.1:1111 >/dev/null 2>&1; then
+          success=1
+          break
+        fi
       fi
-      return
-    fi
-    if curl -sSf http://127.0.0.1:1111 >/dev/null 2>&1; then
+      attempt=$((attempt + 1))
+      sleep 1
+    done
+    if [[ $success -eq 1 ]]; then
       ok "$(t curl_ok)"
     else
       warn "$(t curl_fail)"
