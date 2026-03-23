@@ -826,7 +826,7 @@ events {}
 http {
     resolver 127.0.0.11 ipv6=off;
     server {
-        listen 1111;
+        listen 80;
         server_name _;
         auth_basic "Helium Dashboard";
         auth_basic_user_file /etc/nginx/.htpasswd;
@@ -856,7 +856,7 @@ events {}
 http {
     resolver 127.0.0.11 ipv6=off;
     server {
-        listen 1111;
+        listen 80;
         server_name _;
         root /usr/share/nginx/html;
         index index.html;
@@ -2378,7 +2378,7 @@ do_install() {
     --name "$CTR_UI" \
     --restart unless-stopped \
     --network "$NET_NAME" \
-    -p 1111:1111 \
+    -p 1111:80 \
     "$IMG_UI"
 
   ok "Dashboard started."
