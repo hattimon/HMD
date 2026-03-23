@@ -1067,11 +1067,17 @@ EOF
         <span class="chip" id="regionChip">Region: -</span>
         <span class="chip" id="nextBeaconChip">Next beacon: -</span>
         <select id="rangeSelect">
-          <option value="1h">1h</option>
-          <option value="24h" selected>24h</option>
-          <option value="7d">7d</option>
-          <option value="30d">30d</option>
-          <option value="all">all</option>
+          <option value="1h">1H</option>
+          <option value="4h">4H</option>
+          <option value="12h">12H</option>
+          <option value="24h" selected>24H</option>
+          <option value="7d">7D</option>
+          <option value="14d">14D</option>
+          <option value="30d">30D</option>
+          <option value="90d">90D</option>
+          <option value="180d">180D</option>
+          <option value="1y">1Rok</option>
+          <option value="max">Max</option>
         </select>
         <select id="langSelect">
           <option value="pl">PL</option>
@@ -1455,6 +1461,12 @@ let state = {
   lastEvents: []
 };
 
+// legacy compatibility: older builds stored "all"
+if (state.range === "all") {
+  state.range = "max";
+  localStorage.setItem("range", "max");
+}
+
 const defaultApi = `${location.origin}/api`;
 const apiBaseManual = localStorage.getItem("apiBaseManual") === "1";
 let apiBase = apiBaseManual ? (localStorage.getItem("apiBase") || defaultApi) : defaultApi;
@@ -1507,12 +1519,18 @@ function setFilters(){
 }
 
 function rangeFrom(){
-  if(state.range === "all") return null;
+  if(state.range === "all" || state.range === "max") return null;
   const now = new Date();
   if(state.range === "1h") return new Date(now.getTime() - 1*3600*1000);
+  if(state.range === "4h") return new Date(now.getTime() - 4*3600*1000);
+  if(state.range === "12h") return new Date(now.getTime() - 12*3600*1000);
   if(state.range === "24h") return new Date(now.getTime() - 24*3600*1000);
   if(state.range === "7d") return new Date(now.getTime() - 7*24*3600*1000);
+  if(state.range === "14d") return new Date(now.getTime() - 14*24*3600*1000);
   if(state.range === "30d") return new Date(now.getTime() - 30*24*3600*1000);
+  if(state.range === "90d") return new Date(now.getTime() - 90*24*3600*1000);
+  if(state.range === "180d") return new Date(now.getTime() - 180*24*3600*1000);
+  if(state.range === "1y") return new Date(now.getTime() - 365*24*3600*1000);
   return null;
 }
 
@@ -1676,7 +1694,7 @@ function applySummary(s){
   $("sNextBeacon").textContent = s.next_beacon || "-";
   $("regionChip").textContent = `Region: ${s.region || "-"}`;
   $("nextBeaconChip").textContent = `Next beacon: ${s.next_beacon || "-"}`;
-  const rl = state.range === "all" ? t("allTime") : state.range;
+  const rl = (state.range === "all" || state.range === "max") ? t("allTime") : state.range;
   $("mTxSub").textContent = rl;
   $("mRxSub").textContent = rl;
   $("mWitSub").textContent = rl;
