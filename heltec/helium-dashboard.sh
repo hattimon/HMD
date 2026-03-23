@@ -980,7 +980,7 @@ EOF
     .metric-value.long{font-size:12px;word-break:break-all;line-height:1.2}
     .metric-sub{font-size:12px;color:var(--muted);margin-top:6px}
     .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-    .legend{display:flex;gap:10px;flex-wrap:wrap}
+    .legend{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .dot{width:10px;height:10px;border-radius:50%}
     .table-wrap{overflow-x:hidden;overflow-y:auto;border-radius:12px;border:1px solid var(--border);-webkit-overflow-scrolling:touch}
     .table-wrap.scroll-x{overflow-x:hidden}
@@ -1010,6 +1010,13 @@ EOF
     .pill.warn{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.3)}
     .pill.err{background:rgba(248,113,113,.15);border-color:rgba(248,113,113,.3)}
     .pill.info{background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.3)}
+    .legend-toggle{cursor:pointer;user-select:none}
+    .legend-toggle input{margin:0;accent-color:var(--accent);width:13px;height:13px}
+    .legend-toggle.tx input{accent-color:#60a5fa}
+    .legend-toggle.rx input{accent-color:#22d3ee}
+    .legend-toggle.wit input{accent-color:#f59e0b}
+    .legend-toggle.err input{accent-color:#f87171}
+    .legend-toggle.off{opacity:.42;filter:saturate(.7)}
     .mark{display:inline-flex;align-items:center;justify-content:center;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700;margin-left:6px;border:1px solid transparent}
     .mark.ok{color:#34d399;background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.35)}
     .mark.money{color:#fbbf24;background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.45)}
@@ -1167,10 +1174,10 @@ EOF
         <div class="card-header">
           <div data-i18n="activityChart">Aktywnosc (TX/RX/Witness)</div>
           <div class="legend">
-            <span class="pill info"><span class="ico tx"></span>TX</span>
-            <span class="pill"><span class="ico rx"></span>RX</span>
-            <span class="pill warn"><span class="ico wit"></span>WIT</span>
-            <span class="pill err"><span class="ico err"></span>ERR</span>
+            <label class="pill info legend-toggle tx" id="chartLegendTx"><input id="chartToggleTx" type="checkbox" checked><span class="ico tx"></span>TX</label>
+            <label class="pill legend-toggle rx" id="chartLegendRx"><input id="chartToggleRx" type="checkbox" checked><span class="ico rx"></span>RX</label>
+            <label class="pill warn legend-toggle wit" id="chartLegendWit"><input id="chartToggleWit" type="checkbox" checked><span class="ico wit"></span>WIT</label>
+            <label class="pill err legend-toggle err" id="chartLegendErr"><input id="chartToggleErr" type="checkbox" checked><span class="ico err"></span>ERR</label>
           </div>
         </div>
         <div class="chart" id="chart"></div>
@@ -1489,6 +1496,10 @@ let state = {
   customHours: Math.max(0, parseInt(localStorage.getItem("customHours") || "0", 10) || 0),
   autoLive: localStorage.getItem("autoLive") !== "0",
   soundEnabled: localStorage.getItem("soundEnabled") !== "0",
+  chartShowTx: localStorage.getItem("chartShowTx") !== "0",
+  chartShowRx: localStorage.getItem("chartShowRx") !== "0",
+  chartShowWit: localStorage.getItem("chartShowWit") !== "0",
+  chartShowErr: localStorage.getItem("chartShowErr") !== "0",
   lastSignalKey: localStorage.getItem("lastSignalKey") || "",
   liveTimer: null,
   refreshBusy: false,
@@ -1503,7 +1514,8 @@ let state = {
   macs: [],
   rfFallback: null,
   rfFromSummary: null,
-  lastEvents: []
+  lastEvents: [],
+  lastChartRows: []
 };
 
 // legacy compatibility: older builds stored "all"
@@ -1603,6 +1615,21 @@ function setLiveOptions(){
   $("soundEnabledToggle").checked = state.soundEnabled;
   localStorage.setItem("autoLive", state.autoLive ? "1" : "0");
   localStorage.setItem("soundEnabled", state.soundEnabled ? "1" : "0");
+}
+
+function setChartToggles(){
+  $("chartToggleTx").checked = state.chartShowTx;
+  $("chartToggleRx").checked = state.chartShowRx;
+  $("chartToggleWit").checked = state.chartShowWit;
+  $("chartToggleErr").checked = state.chartShowErr;
+  localStorage.setItem("chartShowTx", state.chartShowTx ? "1" : "0");
+  localStorage.setItem("chartShowRx", state.chartShowRx ? "1" : "0");
+  localStorage.setItem("chartShowWit", state.chartShowWit ? "1" : "0");
+  localStorage.setItem("chartShowErr", state.chartShowErr ? "1" : "0");
+  $("chartLegendTx").classList.toggle("off", !state.chartShowTx);
+  $("chartLegendRx").classList.toggle("off", !state.chartShowRx);
+  $("chartLegendWit").classList.toggle("off", !state.chartShowWit);
+  $("chartLegendErr").classList.toggle("off", !state.chartShowErr);
 }
 
 function rangeFrom(){
@@ -1968,7 +1995,16 @@ function renderChart(rows){
     wit: rows.map(r=>r.wit||0),
     err: rows.map(r=>r.err||0),
   };
-  const maxVal = Math.max(1, ...Object.values(series).flat());
+  const visibleSeries = [];
+  if (state.chartShowTx) visibleSeries.push(series.tx);
+  if (state.chartShowRx) visibleSeries.push(series.rx);
+  if (state.chartShowWit) visibleSeries.push(series.wit);
+  if (state.chartShowErr) visibleSeries.push(series.err);
+  if (!visibleSeries.length){
+    el.innerHTML = `<div class="muted" style="padding:14px">${t("noData")}</div>`;
+    return;
+  }
+  const maxVal = Math.max(1, ...visibleSeries.flat());
   const pad = 16;
   const step = (w - pad*2) / Math.max(1, rows.length-1);
 
@@ -1998,12 +2034,13 @@ function renderChart(rows){
   }
 
   const lines = [
-    {key:"tx", color:"var(--accent-2)"},
-    {key:"rx", color:"var(--accent)"},
-    {key:"wit", color:"var(--accent-3)"},
-    {key:"err", color:"var(--danger)"},
+    {key:"tx", color:"var(--accent-2)", show: state.chartShowTx},
+    {key:"rx", color:"var(--accent)", show: state.chartShowRx},
+    {key:"wit", color:"var(--accent-3)", show: state.chartShowWit},
+    {key:"err", color:"var(--danger)", show: state.chartShowErr},
   ];
   lines.forEach(l=>{
+    if (!l.show) return;
     const pl = document.createElementNS(svg.namespaceURI,"polyline");
     pl.setAttribute("fill","none");
     pl.setAttribute("stroke", l.color);
@@ -2030,7 +2067,10 @@ async function loadChart(){
   const q = params.toString() ? `?${params.toString()}` : "";
   const key = cacheKey("chart", params.toString() || "all");
   const cached = cacheGet(key, 10*60*1000);
-  if (cached) renderChart(cached);
+  if (cached) {
+    state.lastChartRows = cached;
+    renderChart(cached);
+  }
   let rows = await api(`/chart/daily${q}`, 6000);
   if ((!rows || rows.length === 0) && state.lastEvents && state.lastEvents.length){
     const map = {};
@@ -2046,6 +2086,7 @@ async function loadChart(){
     rows = Object.values(map).sort((a,b)=>a.day.localeCompare(b.day));
   }
   cacheSet(key, rows);
+  state.lastChartRows = rows || [];
   renderChart(rows);
 }
 
@@ -2463,6 +2504,18 @@ document.getElementById("customHoursInput").addEventListener("keydown", (e)=>{
   if (e.key === "Enter") document.getElementById("customRangeApply").click();
 });
 
+function bindChartToggle(id, key){
+  document.getElementById(id).addEventListener("change", (e)=>{
+    state[key] = e.target.checked;
+    setChartToggles();
+    renderChart(state.lastChartRows || []);
+  });
+}
+bindChartToggle("chartToggleTx", "chartShowTx");
+bindChartToggle("chartToggleRx", "chartShowRx");
+bindChartToggle("chartToggleWit", "chartShowWit");
+bindChartToggle("chartToggleErr", "chartShowErr");
+
 document.getElementById("typeSelect").addEventListener("change", e=>{
   state.type = e.target.value;
   refreshAll();
@@ -2526,6 +2579,7 @@ setLang();
 setRange();
 setFilters();
 setLiveOptions();
+setChartToggles();
 document.getElementById("hotspotBtn").addEventListener("click", () => loadHotspot(true));
 loadLocalInfo().then(() => loadHotspot(false));
 refreshAll();
