@@ -1239,6 +1239,10 @@ EOF
             <input id="showErrors" type="checkbox">
             <span data-i18n="showErrors">Bledy</span>
           </label>
+          <label class="chip">
+            <input id="localTimeToggle" type="checkbox">
+            <span data-i18n="localTime">Zamien na czas lokalny</span>
+          </label>
           <select id="typeSelect">
             <option value="" data-i18n="all">Wszystkie</option>
             <option value="beacon_tx">Beacon TX</option>
@@ -1426,6 +1430,7 @@ const i18n = {
     apply: "Zastosuj",
     autoLive: "Auto nowe zdarzenia",
     soundEnabled: "Dzwiek",
+    localTime: "Zamien na czas lokalny",
   },
   en: {
     summary: "📊 Summary",
@@ -1488,6 +1493,7 @@ const i18n = {
     apply: "Apply",
     autoLive: "Auto new events",
     soundEnabled: "Sound",
+    localTime: "Convert to local time",
   }
 };
 
@@ -1512,6 +1518,7 @@ let state = {
   mac: "",
   showTech: localStorage.getItem("showTech") === "1",
   showErrors: localStorage.getItem("showErrors") === "1",
+  localTime: localStorage.getItem("localTime") !== "0",
   hotspotAddr: localStorage.getItem("hotspotAddr") || "",
   hotspotManual: localStorage.getItem("hotspotAddrManual") === "1",
   localWallet: "",
@@ -1611,8 +1618,10 @@ function readCustomRangeInputs(){
 function setFilters(){
   $("showTech").checked = state.showTech;
   $("showErrors").checked = state.showErrors;
+  $("localTimeToggle").checked = state.localTime;
   localStorage.setItem("showTech", state.showTech ? "1" : "0");
   localStorage.setItem("showErrors", state.showErrors ? "1" : "0");
+  localStorage.setItem("localTime", state.localTime ? "1" : "0");
 }
 
 function setLiveOptions(){
@@ -1687,9 +1696,57 @@ function fmt(n){
   return Number(n).toFixed(1);
 }
 
+function parseDashboardTime(ts){
+  if(!ts) return null;
+  const s = String(ts).trim();
+  let m = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z$/);
+  if (m){
+    const frac = m[3] ? "." + m[3].slice(0,3).padEnd(3, "0") : "";
+    const d = new Date(`${m[1]}T${m[2]}${frac}Z`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  m = s.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d+))?\s+\+00:00:00$/);
+  if (m){
+    const parts = m[1].split("-").map(Number);
+    const ms = m[5] ? Number(m[5].slice(0,3).padEnd(3, "0")) : 0;
+    const d = new Date(Date.UTC(parts[0], parts[1]-1, parts[2], Number(m[2]), Number(m[3]), Number(m[4]), ms));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+  if (m){
+    const d = new Date(`${m[1]}T${m[2]}:${m[3]}:${m[4]}Z`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+function fmtUtcLike(ts){
+  if(!ts) return "-";
+  const s = String(ts).trim();
+  let m = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?Z$/);
+  if (m) return `${m[1]} ${m[2]}`;
+  m = s.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})(?:\.\d+)?\s+\+00:00:00$/);
+  if (m) return `${m[1]} ${String(m[2]).padStart(2,"0")}:${m[3]}:${m[4]}`;
+  return s.replace("T"," ").replace("Z","").replace(/\.\d+$/,"");
+}
+
+function fmtLocalTime(ts){
+  const d = parseDashboardTime(ts);
+  if(!d) return fmtUtcLike(ts);
+  return d.toLocaleString(state.lang === "pl" ? "pl-PL" : "en-GB", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  });
+}
+
 function fmtTs(ts){
   if(!ts) return "-";
-  return ts.replace("T"," ").replace("Z","").replace(/\.\d+$/,"");
+  return state.localTime ? fmtLocalTime(ts) : fmtUtcLike(ts);
 }
 
 function fmtFreq(f){
@@ -1896,9 +1953,9 @@ function applySummary(s){
   $("mWitIgnored").textContent = s.witnesses_ignored || 0;
   $("sRestarts").textContent = s.restarts || 0;
   $("sRegion").textContent = s.region || "-";
-  $("sNextBeacon").textContent = s.next_beacon || "-";
-  $("regionChip").textContent = `Region: ${s.region || "-"}`;
-  $("nextBeaconChip").textContent = `Next beacon: ${s.next_beacon || "-"}`;
+  $("sNextBeacon").textContent = fmtTs(s.next_beacon);
+  $("regionChip").textContent = `${t("regionLabel")}: ${s.region || "-"}`;
+  $("nextBeaconChip").textContent = `${t("nextBeaconLabel")}: ${fmtTs(s.next_beacon)}`;
   const rl = rangeLabel();
   $("mTxSub").textContent = rl;
   $("mRxSub").textContent = rl;
@@ -2475,6 +2532,7 @@ window.addEventListener("resize", ()=>{
 document.getElementById("langSelect").addEventListener("change", e=>{
   state.lang = e.target.value;
   setLang();
+  refreshAll();
 });
 
 document.getElementById("themeToggle").addEventListener("click", ()=>{
@@ -2539,6 +2597,12 @@ document.getElementById("showTech").addEventListener("change", e=>{
 
 document.getElementById("showErrors").addEventListener("change", e=>{
   state.showErrors = e.target.checked;
+  setFilters();
+  refreshAll();
+});
+
+document.getElementById("localTimeToggle").addEventListener("change", e=>{
+  state.localTime = e.target.checked;
   setFilters();
   refreshAll();
 });
