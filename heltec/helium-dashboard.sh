@@ -979,10 +979,11 @@ EOF
     .metric-value{font-size:26px;font-weight:700}
     .metric-value.long{font-size:12px;word-break:break-all;line-height:1.2}
     .metric-sub{font-size:12px;color:var(--muted);margin-top:6px}
-    .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px}
+    .card-header > :first-child{min-width:0;flex:1 1 auto}
     .legend{display:flex;gap:6px;flex-wrap:nowrap;align-items:center;justify-content:flex-end;min-width:0;flex-shrink:0}
     .legend .pill{padding:3px 7px;font-size:10.5px;gap:5px;line-height:1}
-    .legend .pill.err{padding:3px 6px}
+    .legend .pill.err{padding:2px 5px;font-size:10px;gap:4px}
     .dot{width:10px;height:10px;border-radius:50%}
     .table-wrap{overflow-x:hidden;overflow-y:auto;border-radius:12px;border:1px solid var(--border);-webkit-overflow-scrolling:touch}
     .table-wrap.scroll-x{overflow-x:hidden}
