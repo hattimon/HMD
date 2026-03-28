@@ -962,6 +962,7 @@ EOF
     .custom-range .unit{font-size:12px;color:var(--muted);white-space:nowrap}
     .custom-range[hidden]{display:none!important}
     button,select,input{border:1px solid var(--border);background:var(--card);color:var(--fg);padding:8px 10px;border-radius:10px;font-size:13px;box-shadow:var(--shadow)}
+    .mini-select{padding:6px 8px;font-size:12px}
     .controls input{min-width:0}
     button{cursor:pointer}
     .chip{display:inline-flex;gap:8px;align-items:center;background:var(--chip);border:1px solid var(--border);padding:6px 10px;border-radius:999px;font-size:12px;color:var(--muted)}
@@ -1256,6 +1257,10 @@ EOF
             <input id="showDataTransfer" type="checkbox">
             <span data-i18n="showDataTransfer">Transfer danych</span>
           </label>
+          <select id="dataTransferScope" class="mini-select">
+            <option value="local" data-i18n="dataScopeLocal">Lokalny</option>
+            <option value="all" data-i18n="dataScopeAll">Wszystkie</option>
+          </select>
           <label class="chip">
             <input id="localTimeToggle" type="checkbox">
             <span data-i18n="localTime">Zamien na czas lokalny</span>
@@ -1401,6 +1406,8 @@ const i18n = {
     showTech: "Techniczne",
     showErrors: "Bledy",
     showDataTransfer: "Transfer danych",
+    dataScopeLocal: "Lokalny",
+    dataScopeAll: "Wszystkie",
     activityChart: "📈 Aktywnosc (TX/RX/Swiadek)",
     rfStats: "📡 RF Statystyki",
     rssiTrend: "Trend RSSI",
@@ -1465,6 +1472,8 @@ const i18n = {
     showTech: "Technical",
     showErrors: "Errors",
     showDataTransfer: "Data Transfer",
+    dataScopeLocal: "Local",
+    dataScopeAll: "All",
     activityChart: "📈 Activity (TX/RX/Witness)",
     rfStats: "📡 RF Stats",
     rssiTrend: "RSSI trend",
@@ -1539,6 +1548,7 @@ let state = {
   showTech: localStorage.getItem("showTech") === "1",
   showErrors: localStorage.getItem("showErrors") === "1",
   showDataTransfer: localStorage.getItem("showDataTransfer") !== "0",
+  dataTransferScope: localStorage.getItem("dataTransferScope") || "local",
   localTime: localStorage.getItem("localTime") !== "0",
   hotspotAddr: localStorage.getItem("hotspotAddr") || "",
   hotspotManual: localStorage.getItem("hotspotAddrManual") === "1",
@@ -1640,10 +1650,12 @@ function setFilters(){
   $("showTech").checked = state.showTech;
   $("showErrors").checked = state.showErrors;
   $("showDataTransfer").checked = state.showDataTransfer;
+  $("dataTransferScope").value = state.dataTransferScope;
   $("localTimeToggle").checked = state.localTime;
   localStorage.setItem("showTech", state.showTech ? "1" : "0");
   localStorage.setItem("showErrors", state.showErrors ? "1" : "0");
   localStorage.setItem("showDataTransfer", state.showDataTransfer ? "1" : "0");
+  localStorage.setItem("dataTransferScope", state.dataTransferScope);
   localStorage.setItem("localTime", state.localTime ? "1" : "0");
 }
 
@@ -1798,10 +1810,40 @@ function isDataTransferEvent(r){
   return !!(r && r.type === "data_transfer");
 }
 
+function resolveLocalMac(rows){
+  if (state.localMac && rows && rows.some(r=>r.mac === state.localMac)) return state.localMac;
+  const fromConnect = rows ? rows.find(r=>r.type === "client_connect" && r.mac) : null;
+  if (fromConnect && fromConnect.mac) return fromConnect.mac;
+  if (state.macs && state.macs.length === 1) return state.macs[0];
+  return state.localMac || "";
+}
+
+function dataTransferStats(r){
+  if (!r) return null;
+  const raw = r.raw || "";
+  let bytes = r.len != null ? Number(r.len) : null;
+  if (bytes == null) {
+    const m = /(\d+)\s*bytes?/i.exec(raw);
+    if (m) bytes = Number(m[1]);
+  }
+  let packets = 1;
+  const pm = /(\d+)\s*packets?/i.exec(raw);
+  if (pm) packets = Math.max(1, Number(pm[1]) || 1);
+  let dc = null;
+  const dcm = /(\d+)\s*dc\b/i.exec(raw);
+  if (dcm) dc = Number(dcm[1]);
+  if (dc == null && bytes != null) {
+    dc = Math.ceil(bytes / 24);
+  }
+  return { bytes, packets, dc };
+}
+
 function isDataTransferMonetized(r){
   if (!isDataTransferEvent(r)) return false;
   const raw = r.raw || "";
-  return /dc\s*[:=]\s*\d+/i.test(raw) || /\bpackets?\b/i.test(raw);
+  if (/dc\s*[:=]\s*\d+/i.test(raw)) return true;
+  const stats = dataTransferStats(r);
+  return !!(stats && stats.dc && stats.dc > 0);
 }
 
 function isSignalEvent(r){
@@ -2207,9 +2249,13 @@ function renderEvents(data){
   const tbody = $("eventsBody");
   tbody.innerHTML = "";
   const techTypes = new Set(["info","start","session_init","client_connect","region_update","beacon_next_time","server_start"]);
-  const rows = data.rows.filter(r=>{
+  const dataRows = (data && data.rows) ? data.rows : [];
+  const localMac = resolveLocalMac(dataRows);
+  if (localMac) state.localMac = localMac;
+  const rows = dataRows.filter(r=>{
     if (!state.showErrors && r.type === "error") return false;
     if (!state.showDataTransfer && r.type === "data_transfer") return false;
+    if (r.type === "data_transfer" && state.dataTransferScope === "local" && localMac && r.mac && r.mac !== localMac) return false;
     if (!state.showTech && techTypes.has(r.type)) return false;
     return true;
   });
@@ -2255,6 +2301,14 @@ function renderEvents(data){
       if (r.snr != null) rfLines.push(`<span>SNR: <b>${r.snr}</b></span>`);
       if (r.freq != null) rfLines.push(`<span>F: <b>${fmtFreq(r.freq)}</b></span>`);
       if (r.len != null) rfLines.push(`<span>L: <b>${r.len}</b></span>`);
+      if (r.type === "data_transfer") {
+        const dt = dataTransferStats(r);
+        if (dt) {
+          if (dt.bytes != null) rfLines.push(`<span>Bytes: <b>${dt.bytes}</b></span>`);
+          if (dt.packets != null) rfLines.push(`<span>Packets: <b>${dt.packets}</b></span>`);
+          if (dt.dc != null) rfLines.push(`<span>DC: <b>${dt.dc}</b></span>`);
+        }
+      }
       const rfHtml = rfLines.length ? rfLines.join("") : `<span>-</span>`;
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -2655,6 +2709,12 @@ document.getElementById("showErrors").addEventListener("change", e=>{
 
 document.getElementById("showDataTransfer").addEventListener("change", e=>{
   state.showDataTransfer = e.target.checked;
+  setFilters();
+  refreshAll();
+});
+
+document.getElementById("dataTransferScope").addEventListener("change", e=>{
+  state.dataTransferScope = e.target.value || "local";
   setFilters();
   refreshAll();
 });
