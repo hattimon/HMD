@@ -1077,7 +1077,7 @@ EOF
     .ico.rx{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235eead4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 5v14'/><path d='M7 14l5 5 5-5'/></svg>")}
     .ico.wit{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z'/><circle cx='12' cy='12' r='3'/></svg>")}
     .ico.err{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f87171' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 9v4'/><path d='M12 17h.01'/><path d='M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z'/></svg>")}
-    .ico.data{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 7h16'/><path d='M4 17h16'/><path d='m7 10-3 2 3 2'/><path d='m17 14 3-2-3-2'/></svg>")}
+    .ico.data{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 16V8a2 2 0 0 0-1-1.73L13 2.27a2 2 0 0 0-2 0L4 6.27A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/><path d='M3.3 7l8.7 5 8.7-5'/><path d='M12 22V12'/></svg>")}
     .muted{color:var(--muted)}
     .split{display:flex;gap:10px;flex-wrap:wrap}
     .chart{width:100%;height:220px;border-radius:12px;background:var(--grid);border:1px solid var(--border)}
@@ -1206,8 +1206,8 @@ EOF
 
     <div class="grid metrics">
       <div class="card">
-        <div class="metric-title"><span class="ico data"></span><span data-i18n="dtPackets">Suma pakietow (Data Transfer)</span></div>
-        <div class="metric-value" id="mDtPackets">0</div>
+        <div class="metric-title"><span class="ico data"></span><span data-i18n="dtPackets">Data Transfer / Suma pakietow</span></div>
+        <div class="metric-value" id="mDtCount">0</div>
         <div class="metric-sub" id="mDtPacketsSub">-</div>
       </div>
       <div class="card">
@@ -1459,10 +1459,11 @@ const i18n = {
     dtCount: "Data Transfer",
     dtDc: "Suma DC",
     dtBytes: "Suma bytes",
-    dtPackets: "Suma pakietow (Data Transfer)",
+    dtPackets: "Data Transfer / Suma pakietow",
     dtAvg: "Srednie transferu",
     dtAvgBytes: "bytes/zdarzenie",
     dtAvgDc: "DC/transfer",
+    packetsLabel: "Pakiety",
     regionLabel: "Region",
     nextBeaconLabel: "Nastepny beacon",
     restartsLabel: "Restarty",
@@ -1532,10 +1533,11 @@ const i18n = {
     dtCount: "Data Transfer",
     dtDc: "Total DC",
     dtBytes: "Total bytes",
-    dtPackets: "Data Transfer packets",
+    dtPackets: "Data Transfer / Packet total",
     dtAvg: "Transfer averages",
     dtAvgBytes: "bytes/event",
     dtAvgDc: "DC/transfer",
+    packetsLabel: "Packets",
     regionLabel: "Region",
     nextBeaconLabel: "Next beacon",
     restartsLabel: "Restarts",
@@ -1962,12 +1964,8 @@ function playEventSounds(events){
   let delay = 0;
   burst.forEach(ev => {
     if (isDataTransferEvent(ev)) {
-      setTimeout(()=>playSound("/audio/data.wav"), delay);
+      setTimeout(()=>playSound("/audio/data.mp3"), delay);
       delay += 240;
-      if (isDataTransferMonetized(ev)) {
-        setTimeout(()=>playSound("/audio/data_coin.wav"), delay);
-        delay += 240;
-      }
       return;
     }
     setTimeout(()=>playSound("/audio/new.wav"), delay);
@@ -2131,13 +2129,16 @@ function applySummary(s){
   $("mWit").textContent = s.witnesses || 0;
   $("mErr").textContent = s.errors || 0;
   const dtCount = s.dt_count || 0;
+  const dtPackets = s.dt_packets || 0;
+  $("mDtCount").textContent = dtCount;
   $("mDtDc").textContent = s.dt_dc || 0;
   $("mDtBytes").textContent = fmtBytes(s.dt_bytes || 0);
-  $("mDtPackets").textContent = s.dt_packets || 0;
-  const avgBytes = dtCount ? (s.dt_bytes || 0) / dtCount : null;
-  const avgDc = dtCount ? (s.dt_dc || 0) / dtCount : null;
-  $("mDtAvgBytes").textContent = avgBytes !== null ? `${fmtBytes(avgBytes)} ${t("dtAvgBytes")}` : "-";
-  $("mDtAvgDc").textContent = avgDc !== null ? `${fmt(avgDc)} ${t("dtAvgDc")}` : "-";
+  const avgBytesRaw = dtCount ? (s.dt_bytes || 0) / dtCount : null;
+  const avgDcRaw = dtCount ? (s.dt_dc || 0) / dtCount : null;
+  const avgBytes = avgBytesRaw === null ? null : Math.round(avgBytesRaw);
+  const avgDc = avgDcRaw === null ? null : Math.ceil(avgDcRaw);
+  $("mDtAvgBytes").textContent = avgBytes !== null ? `${avgBytes} ${t("dtAvgBytes")}` : "-";
+  $("mDtAvgDc").textContent = avgDc !== null ? `${avgDc} ${t("dtAvgDc")}` : "-";
   $("mWitIgnored").textContent = s.witnesses_ignored || 0;
   $("sRestarts").textContent = s.restarts || 0;
   $("sRegion").textContent = s.region || "-";
@@ -2151,7 +2152,7 @@ function applySummary(s){
   $("mErrSub").textContent = rl;
   $("mDtDcSub").textContent = rl;
   $("mDtBytesSub").textContent = rl;
-  $("mDtPacketsSub").textContent = rl;
+  $("mDtPacketsSub").textContent = `${t("packetsLabel")}: ${dtPackets} • ${rl}`;
 
   const rf = {
     avg_rssi: s.avg_rssi, min_rssi: s.min_rssi, max_rssi: s.max_rssi,
@@ -2880,7 +2881,7 @@ HTMLEOF
 download_audio_assets() {
   section "$(t fetching_audio)"
   mkdir -p "$BASE_DIR/ui/www/audio"
-  local files=("new.wav" "cash.mp3" "data.wav" "data_coin.wav")
+  local files=("new.wav" "cash.mp3" "data.mp3")
   local any_ok=0
   local f
   for f in "${files[@]}"; do
