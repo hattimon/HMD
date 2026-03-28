@@ -266,6 +266,16 @@ def classify(msg, raw=""):
         v = grab(r'snr:\s*([-0-9.]+)'); snr=float(v) if v else None
         v = grab(r'rssi:\s*([-0-9.]+)'); rssi=int(float(v)) if v else None
         v = grab(r'len:\s*(\d+)'); length=int(v) if v else None
+    elif "received uplink" in msg:
+        t="data_transfer"
+        m=re.search(r'downlink_mac=([0-9A-Fa-f:]+)',msg); mac=m.group(1) if m else None
+        if not mac:
+            m=re.search(r'downlink_mac=([0-9A-Fa-f:]+)',raw); mac=m.group(1) if m else None
+        v = grab(r'(\d+)\s*MHz'); freq=int(v) if v else None
+        v = grab(r'snr:\s*([-0-9.]+)'); snr=float(v) if v else None
+        v = grab(r'rssi:\s*([-0-9.]+)'); rssi=int(float(v)) if v else None
+        v = grab(r'len:\s*(\d+)'); length=int(v) if v else None
+        v = grab(r'region=([A-Z0-9]+)'); region=v if v else None
     elif "beacon transmitted" in msg:
         t="beacon_tx_gateway"
         m=re.search(r'beacon_id=\"?([^\"\\s]+)\"?',msg); bid=m.group(1) if m else None
