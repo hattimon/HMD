@@ -1964,7 +1964,7 @@ function playEventSounds(events){
   let delay = 0;
   burst.forEach(ev => {
     if (isDataTransferEvent(ev)) {
-      setTimeout(()=>playSound("/audio/data.mp3"), delay);
+      setTimeout(()=>playSound("/audio/data.wav"), delay);
       delay += 240;
       return;
     }
@@ -2881,7 +2881,7 @@ HTMLEOF
 download_audio_assets() {
   section "$(t fetching_audio)"
   mkdir -p "$BASE_DIR/ui/www/audio"
-  local files=("new.wav" "cash.mp3" "data.mp3")
+  local files=("new.wav" "cash.mp3" "data.wav")
   local any_ok=0
   local f
   for f in "${files[@]}"; do
