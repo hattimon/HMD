@@ -44,16 +44,20 @@ t() {
         welcome)           echo "Helium Miner Dashboard - instalator";;
         choose_lang)       echo "Wybierz jezyk / Choose language [en/pl]:";;
         invalid_lang)      echo "Nieprawidlowy wybor, domyslnie en.";;
-        menu)              echo "Co chcesz zrobic? [1] Zainstaluj  [2] Odinstaluj  [3] Wyjdz:";;
+        menu)              echo "Co chcesz zrobic? [1] Zainstaluj  [2] Odinstaluj  [3] Wyjdz  [4] Przebuduj logi:";;
         invalid_choice)    echo "Nieprawidlowy wybor.";;
         installing)        echo "Rozpoczynam instalacje dashboardu w $BASE_DIR ...";;
         uninstalling)      echo "Rozpoczynam odinstalowywanie z $BASE_DIR ...";;
+        reindexing)        echo "Przebudowuje logi (czyszczenie bazy i offsetu) ...";;
         done_install)      echo "Instalacja zakonczona. Dashboard dostepny pod:";;
         done_uninstall)    echo "Odinstalowywanie zakonczone. Kontenery usuniete.";;
+        done_reindex)      echo "Przebudowa logow zakonczona. Parser uruchomiony ponownie.";;
         log_missing)       echo "Brak pliku logu: $LOG_PATH";;
         require_root)      echo "Uruchom skrypt jako root.";;
         docker_missing)    echo "Brak polecenia docker. Zainstaluj Docker i sprobuj ponownie.";;
         confirm_uninstall) echo "Na pewno odinstalowac dashboard i usunac $BASE_DIR? [y/N]:";;
+        confirm_reindex)   echo "Na pewno przebudowac logi? (usunie baze i offset) [y/N]:";;
+        reindex_no_image)  echo "Brak obrazu parsera. Najpierw uruchom instalacje.";;
         cancelled)         echo "Anulowano.";;
         creating_files)    echo "Tworzenie struktury katalogow i plikow...";;
         building_images)   echo "Budowanie obrazow Docker...";;
@@ -79,16 +83,20 @@ t() {
         welcome)           echo "Helium Miner Dashboard - installer";;
         choose_lang)       echo "Choose language / Wybierz jezyk [en/pl]:";;
         invalid_lang)      echo "Invalid choice, defaulting to en.";;
-        menu)              echo "What do you want to do? [1] Install  [2] Uninstall  [3] Exit:";;
+        menu)              echo "What do you want to do? [1] Install  [2] Uninstall  [3] Exit  [4] Reindex logs:";;
         invalid_choice)    echo "Invalid choice.";;
         installing)        echo "Starting installation into $BASE_DIR ...";;
         uninstalling)      echo "Starting uninstall from $BASE_DIR ...";;
+        reindexing)        echo "Reindexing logs (clearing DB and offset) ...";;
         done_install)      echo "Installation finished. Dashboard available at:";;
         done_uninstall)    echo "Uninstall finished. Containers removed.";;
+        done_reindex)      echo "Log reindex finished. Parser restarted.";;
         log_missing)       echo "Log file not found: $LOG_PATH";;
         require_root)      echo "Run this script as root.";;
         docker_missing)    echo "Docker not found. Install Docker and try again.";;
         confirm_uninstall) echo "Really uninstall dashboard and remove $BASE_DIR? [y/N]:";;
+        confirm_reindex)   echo "Really reindex logs? (clears DB and offset) [y/N]:";;
+        reindex_no_image)  echo "Parser image missing. Run install first.";;
         cancelled)         echo "Cancelled.";;
         creating_files)    echo "Creating directory structure and files...";;
         building_images)   echo "Building Docker images...";;
@@ -2934,6 +2942,41 @@ do_uninstall() {
   esac
 }
 
+do_reindex() {
+  section "$(t reindexing)"
+  read -rp "$(t confirm_reindex) " ans
+  case "$ans" in
+    y|Y|yes|YES)
+      local REAL_LOG_PATH
+      REAL_LOG_PATH=$(detect_log_source)
+      if [[ ! -f "$REAL_LOG_PATH" ]]; then
+        err "$(t log_missing)"
+        err "Log source not found: $REAL_LOG_PATH"
+        exit 1
+      fi
+      if ! docker image inspect "$IMG_PARSER" >/dev/null 2>&1; then
+        err "$(t reindex_no_image)"
+        exit 1
+      fi
+      if ! docker volume ls --format '{{.Name}}' | grep -q "^${VOL_DB}$"; then
+        docker volume create "$VOL_DB" >/dev/null
+      fi
+      docker rm -f "$CTR_PARSER" >/dev/null 2>&1 || true
+      docker run --rm -v "$VOL_DB":/data "$IMG_PARSER" sh -c "rm -f /data/events.db /data/events.db-wal /data/events.db-shm /data/offset.txt" >/dev/null 2>&1 || true
+      docker run -d \
+        --name "$CTR_PARSER" \
+        --restart unless-stopped \
+        -v "$REAL_LOG_PATH":/logs/console.log:ro \
+        -v "$VOL_DB":/data \
+        "$IMG_PARSER" >/dev/null
+      ok "$(t done_reindex)"
+      ;;
+    *)
+      warn "$(t cancelled)"
+      ;;
+  esac
+}
+
 # ---- guards ----
 if [[ "$EUID" -ne 0 ]]; then err "$(t require_root)"; exit 1; fi
 if ! command -v docker >/dev/null 2>&1; then err "$(t docker_missing)"; exit 1; fi
@@ -2954,5 +2997,6 @@ case "$choice" in
   1) do_install ;;
   2) do_uninstall ;;
   3|"") exit 0 ;;
+  4) do_reindex ;;
   *) err "$(t invalid_choice)"; exit 1 ;;
 esac
