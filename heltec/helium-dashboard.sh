@@ -556,6 +556,26 @@ class H(BaseHTTPRequestHandler):
             FROM events {where}
         """, params)
         row = cur.fetchone()
+        dt_packets = None
+        try:
+            cur.execute(f"""
+                SELECT raw FROM events
+                WHERE type='data_transfer' {andwhere}
+            """, params)
+            total = 0
+            for r in cur.fetchall():
+                raw = r["raw"] or ""
+                m = re.search(r'(\\d+)\\s*packets?', raw, re.IGNORECASE)
+                if m:
+                    try:
+                        total += int(m.group(1))
+                    except:
+                        total += 1
+                else:
+                    total += 1
+            dt_packets = total
+        except Exception:
+            dt_packets = None
         cur.execute(f"""
             SELECT raw FROM events
             WHERE type='beacon_next_time' {andwhere}
@@ -597,6 +617,7 @@ class H(BaseHTTPRequestHandler):
             "dt_count":          row["dt_count"]   or 0,
             "dt_bytes":          row["dt_bytes"]   or 0,
             "dt_dc":             row["dt_dc"]      or 0,
+            "dt_packets":        dt_packets if dt_packets is not None else 0,
             "avg_rssi":          rf["avg_rssi"] if rf else row["avg_rssi"],
             "avg_snr":           rf["avg_snr"] if rf else row["avg_snr"],
             "min_rssi":          rf["min_rssi"] if rf else row["min_rssi"],
@@ -1199,6 +1220,11 @@ EOF
         <div class="metric-value" id="mDtBytes">0</div>
         <div class="metric-sub" id="mDtBytesSub">-</div>
       </div>
+      <div class="card">
+        <div class="metric-title"><span class="ico data"></span><span data-i18n="dtPackets">Suma pakietow</span></div>
+        <div class="metric-value" id="mDtPackets">0</div>
+        <div class="metric-sub" id="mDtPacketsSub">-</div>
+      </div>
     </div>
 
     <div class="grid metrics">
@@ -1433,6 +1459,7 @@ const i18n = {
     dtCount: "Data Transfer",
     dtDc: "Suma DC",
     dtBytes: "Suma bytes",
+    dtPackets: "Suma pakietow",
     regionLabel: "Region",
     nextBeaconLabel: "Nastepny beacon",
     restartsLabel: "Restarty",
@@ -1502,6 +1529,7 @@ const i18n = {
     dtCount: "Data Transfer",
     dtDc: "DC total",
     dtBytes: "Bytes total",
+    dtPackets: "Packets total",
     regionLabel: "Region",
     nextBeaconLabel: "Next beacon",
     restartsLabel: "Restarts",
@@ -2099,6 +2127,7 @@ function applySummary(s){
   $("mDtCount").textContent = s.dt_count || 0;
   $("mDtDc").textContent = s.dt_dc || 0;
   $("mDtBytes").textContent = fmtBytes(s.dt_bytes || 0);
+  $("mDtPackets").textContent = s.dt_packets || 0;
   $("mWitIgnored").textContent = s.witnesses_ignored || 0;
   $("sRestarts").textContent = s.restarts || 0;
   $("sRegion").textContent = s.region || "-";
@@ -2113,6 +2142,7 @@ function applySummary(s){
   $("mDtCountSub").textContent = rl;
   $("mDtDcSub").textContent = rl;
   $("mDtBytesSub").textContent = rl;
+  $("mDtPacketsSub").textContent = rl;
 
   const rf = {
     avg_rssi: s.avg_rssi, min_rssi: s.min_rssi, max_rssi: s.max_rssi,
