@@ -544,6 +544,9 @@ class H(BaseHTTPRequestHandler):
               SUM(type='witness_ignored')  as witnesses_ignored,
               SUM(type='error')            as errors,
               SUM(type='server_start')     as restarts,
+              SUM(type='data_transfer')    as dt_count,
+              SUM(CASE WHEN type='data_transfer' THEN len END) as dt_bytes,
+              SUM(CASE WHEN type='data_transfer' AND len IS NOT NULL THEN CAST((len+23)/24 AS INTEGER) END) as dt_dc,
               AVG(CASE WHEN type='beacon_rx' THEN rssi END) as avg_rssi,
               AVG(CASE WHEN type='beacon_rx' THEN snr  END) as avg_snr,
               MIN(CASE WHEN type='beacon_rx' THEN rssi END) as min_rssi,
@@ -591,6 +594,9 @@ class H(BaseHTTPRequestHandler):
             "witnesses_ignored": row["witnesses_ignored"] or 0,
             "errors":            row["errors"]     or 0,
             "restarts":          row["restarts"]   or 0,
+            "dt_count":          row["dt_count"]   or 0,
+            "dt_bytes":          row["dt_bytes"]   or 0,
+            "dt_dc":             row["dt_dc"]      or 0,
             "avg_rssi":          rf["avg_rssi"] if rf else row["avg_rssi"],
             "avg_snr":           rf["avg_snr"] if rf else row["avg_snr"],
             "min_rssi":          rf["min_rssi"] if rf else row["min_rssi"],
@@ -1179,6 +1185,24 @@ EOF
 
     <div class="grid metrics">
       <div class="card">
+        <div class="metric-title"><span class="ico data"></span><span data-i18n="dtCount">Data Transfer</span></div>
+        <div class="metric-value" id="mDtCount">0</div>
+        <div class="metric-sub" id="mDtCountSub">-</div>
+      </div>
+      <div class="card">
+        <div class="metric-title"><span class="ico data"></span><span data-i18n="dtDc">Suma DC</span></div>
+        <div class="metric-value" id="mDtDc">0</div>
+        <div class="metric-sub" id="mDtDcSub">-</div>
+      </div>
+      <div class="card">
+        <div class="metric-title"><span class="ico data"></span><span data-i18n="dtBytes">Suma bytes</span></div>
+        <div class="metric-value" id="mDtBytes">0</div>
+        <div class="metric-sub" id="mDtBytesSub">-</div>
+      </div>
+    </div>
+
+    <div class="grid metrics">
+      <div class="card">
         <div class="metric-title" data-i18n="regionLabel">Region</div>
         <div class="metric-value" id="sRegion">-</div>
       </div>
@@ -1406,6 +1430,9 @@ const i18n = {
     beaconsReceived: "Beacony odebrane",
     witnesses: "Swiadkowie",
     errors: "Bledy",
+    dtCount: "Data Transfer",
+    dtDc: "Suma DC",
+    dtBytes: "Suma bytes",
     regionLabel: "Region",
     nextBeaconLabel: "Nastepny beacon",
     restartsLabel: "Restarty",
@@ -1472,6 +1499,9 @@ const i18n = {
     beaconsReceived: "Beacons received",
     witnesses: "Witnesses",
     errors: "Errors",
+    dtCount: "Data Transfer",
+    dtDc: "DC total",
+    dtBytes: "Bytes total",
     regionLabel: "Region",
     nextBeaconLabel: "Next beacon",
     restartsLabel: "Restarts",
@@ -1801,6 +1831,15 @@ function fmtFreq(f){
   return n + " MHz";
 }
 
+function fmtBytes(n){
+  if (n === null || n === undefined) return "-";
+  const v = Number(n);
+  if (!isFinite(v)) return "-";
+  if (v < 1024) return `${v} B`;
+  if (v < 1024*1024) return `${(v/1024).toFixed(1)} KB`;
+  return `${(v/(1024*1024)).toFixed(2)} MB`;
+}
+
 function rfFromRaw(raw){
   if(!raw) return {};
   const snrM = /snr:\s*([-0-9.]+)/i.exec(raw);
@@ -1911,7 +1950,13 @@ async function pollForNewSignals(){
   try {
     const data = await api("/events?limit=40", 5000);
     const rows = (data && data.rows) ? data.rows : [];
-    const signals = rows.filter(isSignalEvent);
+    const localMac = resolveLocalMac(rows);
+    if (localMac) state.localMac = localMac;
+    const signals = rows.filter(r=>{
+      if (!isSignalEvent(r)) return false;
+      if (r.type === "data_transfer" && state.dataTransferScope === "local" && localMac && r.mac && r.mac !== localMac) return false;
+      return true;
+    });
     if (!signals.length) return;
     const newest = signalEventKey(signals[0]);
     if (!state.lastSignalKey) {
@@ -2051,6 +2096,9 @@ function applySummary(s){
   $("mRx").textContent = s.beacons_rx || 0;
   $("mWit").textContent = s.witnesses || 0;
   $("mErr").textContent = s.errors || 0;
+  $("mDtCount").textContent = s.dt_count || 0;
+  $("mDtDc").textContent = s.dt_dc || 0;
+  $("mDtBytes").textContent = fmtBytes(s.dt_bytes || 0);
   $("mWitIgnored").textContent = s.witnesses_ignored || 0;
   $("sRestarts").textContent = s.restarts || 0;
   $("sRegion").textContent = s.region || "-";
@@ -2062,6 +2110,9 @@ function applySummary(s){
   $("mRxSub").textContent = rl;
   $("mWitSub").textContent = rl;
   $("mErrSub").textContent = rl;
+  $("mDtCountSub").textContent = rl;
+  $("mDtDcSub").textContent = rl;
+  $("mDtBytesSub").textContent = rl;
 
   const rf = {
     avg_rssi: s.avg_rssi, min_rssi: s.min_rssi, max_rssi: s.max_rssi,
@@ -2308,7 +2359,7 @@ function renderEvents(data){
       if (r.rssi != null) rfLines.push(`<span>RSSI: <b>${r.rssi}</b></span>`);
       if (r.snr != null) rfLines.push(`<span>SNR: <b>${r.snr}</b></span>`);
       if (r.freq != null) rfLines.push(`<span>F: <b>${fmtFreq(r.freq)}</b></span>`);
-      if (r.len != null) rfLines.push(`<span>L: <b>${r.len}</b></span>`);
+      if (r.len != null && r.type !== "data_transfer") rfLines.push(`<span>L: <b>${r.len}</b></span>`);
       if (r.type === "data_transfer") {
         const dt = dataTransferStats(r);
         if (dt) {
