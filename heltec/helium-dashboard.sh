@@ -1023,6 +1023,7 @@ EOF
     .pill.warn{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.3)}
     .pill.err{background:rgba(248,113,113,.15);border-color:rgba(248,113,113,.3)}
     .pill.info{background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.3)}
+    .pill.data{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.35)}
     .legend-toggle{cursor:pointer;user-select:none}
     .legend-toggle input{margin:0;accent-color:var(--accent);width:11px;height:11px}
     .legend-toggle.tx input{accent-color:#60a5fa}
@@ -1033,12 +1034,14 @@ EOF
     .mark{display:inline-flex;align-items:center;justify-content:center;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700;margin-left:6px;border:1px solid transparent}
     .mark.ok{color:#34d399;background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.35)}
     .mark.money{color:#fbbf24;background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.45)}
+    .mark.money.soft{color:#f6c453;background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25)}
     .mark.bad{color:#f87171;background:rgba(248,113,113,.15);border-color:rgba(248,113,113,.35)}
     .ico{width:12px;height:12px;display:inline-block;background-size:contain;background-repeat:no-repeat}
     .ico.tx{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2360a5fa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 19V5'/><path d='M7 10l5-5 5 5'/></svg>")}
     .ico.rx{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235eead4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 5v14'/><path d='M7 14l5 5 5-5'/></svg>")}
     .ico.wit{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z'/><circle cx='12' cy='12' r='3'/></svg>")}
     .ico.err{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f87171' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 9v4'/><path d='M12 17h.01'/><path d='M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z'/></svg>")}
+    .ico.data{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 7h16'/><path d='M4 17h16'/><path d='m7 10-3 2 3 2'/><path d='m17 14 3-2-3-2'/></svg>")}
     .muted{color:var(--muted)}
     .split{display:flex;gap:10px;flex-wrap:wrap}
     .chart{width:100%;height:220px;border-radius:12px;background:var(--grid);border:1px solid var(--border)}
@@ -1250,6 +1253,10 @@ EOF
             <span data-i18n="showErrors">Bledy</span>
           </label>
           <label class="chip">
+            <input id="showDataTransfer" type="checkbox">
+            <span data-i18n="showDataTransfer">Transfer danych</span>
+          </label>
+          <label class="chip">
             <input id="localTimeToggle" type="checkbox">
             <span data-i18n="localTime">Zamien na czas lokalny</span>
           </label>
@@ -1258,6 +1265,7 @@ EOF
             <option value="beacon_tx">Beacon TX</option>
             <option value="beacon_rx">Beacon RX</option>
             <option value="witness_report">Witness</option>
+            <option value="data_transfer">Data Transfer</option>
             <option value="error">Error</option>
             <option value="region_update">Region</option>
             <option value="session_init">Session</option>
@@ -1392,6 +1400,7 @@ const i18n = {
     allDevices: "Wszystkie urzadzenia",
     showTech: "Techniczne",
     showErrors: "Bledy",
+    showDataTransfer: "Transfer danych",
     activityChart: "📈 Aktywnosc (TX/RX/Swiadek)",
     rfStats: "📡 RF Statystyki",
     rssiTrend: "Trend RSSI",
@@ -1455,6 +1464,7 @@ const i18n = {
     allDevices: "All devices",
     showTech: "Technical",
     showErrors: "Errors",
+    showDataTransfer: "Data Transfer",
     activityChart: "📈 Activity (TX/RX/Witness)",
     rfStats: "📡 RF Stats",
     rssiTrend: "RSSI trend",
@@ -1528,6 +1538,7 @@ let state = {
   mac: "",
   showTech: localStorage.getItem("showTech") === "1",
   showErrors: localStorage.getItem("showErrors") === "1",
+  showDataTransfer: localStorage.getItem("showDataTransfer") !== "0",
   localTime: localStorage.getItem("localTime") !== "0",
   hotspotAddr: localStorage.getItem("hotspotAddr") || "",
   hotspotManual: localStorage.getItem("hotspotAddrManual") === "1",
@@ -1628,9 +1639,11 @@ function readCustomRangeInputs(){
 function setFilters(){
   $("showTech").checked = state.showTech;
   $("showErrors").checked = state.showErrors;
+  $("showDataTransfer").checked = state.showDataTransfer;
   $("localTimeToggle").checked = state.localTime;
   localStorage.setItem("showTech", state.showTech ? "1" : "0");
   localStorage.setItem("showErrors", state.showErrors ? "1" : "0");
+  localStorage.setItem("showDataTransfer", state.showDataTransfer ? "1" : "0");
   localStorage.setItem("localTime", state.localTime ? "1" : "0");
 }
 
@@ -1781,18 +1794,29 @@ function rfFromRaw(raw){
   return {snr, rssi, freq, len};
 }
 
+function isDataTransferEvent(r){
+  return !!(r && r.type === "data_transfer");
+}
+
+function isDataTransferMonetized(r){
+  if (!isDataTransferEvent(r)) return false;
+  const raw = r.raw || "";
+  return /dc\s*[:=]\s*\d+/i.test(raw) || /\bpackets?\b/i.test(raw);
+}
+
 function isSignalEvent(r){
   if (!r || !r.type) return false;
   return r.type === "beacon_rx" ||
          r.type === "witness_report" ||
          r.type === "beacon_tx" ||
          r.type === "beacon_tx_report" ||
-         r.type === "beacon_tx_gateway";
+         r.type === "beacon_tx_gateway" ||
+         r.type === "data_transfer";
 }
 
 function isMonetizedEvent(r){
   if (!r || !r.type) return false;
-  return r.type === "witness_report" || r.type === "beacon_tx_report";
+  return r.type === "witness_report" || r.type === "beacon_tx_report" || isDataTransferMonetized(r);
 }
 
 function signalEventKey(r){
@@ -1814,6 +1838,15 @@ function playEventSounds(events){
   const burst = events.slice(-5);
   let delay = 0;
   burst.forEach(ev => {
+    if (isDataTransferEvent(ev)) {
+      setTimeout(()=>playSound("/audio/data.wav"), delay);
+      delay += 240;
+      if (isDataTransferMonetized(ev)) {
+        setTimeout(()=>playSound("/audio/data_coin.wav"), delay);
+        delay += 240;
+      }
+      return;
+    }
     setTimeout(()=>playSound("/audio/new.wav"), delay);
     delay += 240;
     if (isMonetizedEvent(ev)) {
@@ -1876,6 +1909,7 @@ const typeLabels = {
     beacon_next_time: "Nastepny beacon",
     witness_report: "Swiadek",
     witness_ignored: "Swiadek (ignor.)",
+    data_transfer: "Transfer danych",
     error: "Blad",
     region_update: "Region",
     session_init: "Sesja",
@@ -1893,6 +1927,7 @@ const typeLabels = {
     beacon_next_time: "Next beacon",
     witness_report: "Witness",
     witness_ignored: "Witness (ignored)",
+    data_transfer: "Data Transfer",
     error: "Error",
     region_update: "Region",
     session_init: "Session",
@@ -1911,6 +1946,7 @@ function typeLabel(type){
 
 function typeIcon(type){
   if (type === "error") return "err";
+  if (type === "data_transfer") return "data";
   if (type === "witness_report" || type === "witness_ignored") return "wit";
   if (type === "beacon_rx") return "rx";
   if (type === "beacon_tx" || type === "beacon_tx_report" || type === "beacon_tx_gateway") return "tx";
@@ -1919,16 +1955,21 @@ function typeIcon(type){
 
 function typePill(type){
   if(type === "error") return "pill err";
+  if(type === "data_transfer") return "pill data";
   if(type === "witness_report") return "pill warn";
   if(type === "beacon_rx") return "pill";
   return "pill info";
 }
 
-function typeMark(type){
+function typeMark(row){
+  const type = row && row.type;
   if (type === "beacon_tx_report" || type === "witness_report") {
     return '<span class="mark ok">&#10003;</span><span class="mark money">$</span>';
   }
   if (type === "witness_ignored") return '<span class="mark bad">&times;</span>';
+  if (type === "data_transfer" && isDataTransferMonetized(row)) {
+    return '<span class="mark money soft">$</span>';
+  }
   return "";
 }
 
@@ -2168,6 +2209,7 @@ function renderEvents(data){
   const techTypes = new Set(["info","start","session_init","client_connect","region_update","beacon_next_time","server_start"]);
   const rows = data.rows.filter(r=>{
     if (!state.showErrors && r.type === "error") return false;
+    if (!state.showDataTransfer && r.type === "data_transfer") return false;
     if (!state.showTech && techTypes.has(r.type)) return false;
     return true;
   });
@@ -2217,7 +2259,7 @@ function renderEvents(data){
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td class="col-time">${fmtTs(r.ts)}</td>
-        <td class="col-type"><span class="${typePill(r.type)}"><span class="ico ${typeIcon(r.type)}"></span>${typeLabel(r.type)}${typeMark(r.type)}</span></td>
+        <td class="col-type"><span class="${typePill(r.type)}"><span class="ico ${typeIcon(r.type)}"></span>${typeLabel(r.type)}${typeMark(r)}</span></td>
         <td class="col-dev"><div>${macLine}</div>${aliasLine}</td>
         <td class="col-id trunc">${r.beacon_id || "-"}</td>
         <td class="col-rf">
@@ -2611,6 +2653,12 @@ document.getElementById("showErrors").addEventListener("change", e=>{
   refreshAll();
 });
 
+document.getElementById("showDataTransfer").addEventListener("change", e=>{
+  state.showDataTransfer = e.target.checked;
+  setFilters();
+  refreshAll();
+});
+
 document.getElementById("localTimeToggle").addEventListener("change", e=>{
   state.localTime = e.target.checked;
   setFilters();
@@ -2674,7 +2722,7 @@ HTMLEOF
 download_audio_assets() {
   section "$(t fetching_audio)"
   mkdir -p "$BASE_DIR/ui/www/audio"
-  local files=("new.wav" "cash.mp3")
+  local files=("new.wav" "cash.mp3" "data.wav" "data_coin.wav")
   local any_ok=0
   local f
   for f in "${files[@]}"; do
