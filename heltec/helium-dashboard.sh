@@ -1206,9 +1206,9 @@ EOF
 
     <div class="grid metrics">
       <div class="card">
-        <div class="metric-title"><span class="ico data"></span><span data-i18n="dtCount">Data Transfer</span></div>
-        <div class="metric-value" id="mDtCount">0</div>
-        <div class="metric-sub" id="mDtCountSub">-</div>
+        <div class="metric-title"><span class="ico data"></span><span data-i18n="dtPackets">Suma pakietow (Data Transfer)</span></div>
+        <div class="metric-value" id="mDtPackets">0</div>
+        <div class="metric-sub" id="mDtPacketsSub">-</div>
       </div>
       <div class="card">
         <div class="metric-title"><span class="ico data"></span><span data-i18n="dtDc">Suma DC</span></div>
@@ -1221,9 +1221,9 @@ EOF
         <div class="metric-sub" id="mDtBytesSub">-</div>
       </div>
       <div class="card">
-        <div class="metric-title"><span class="ico data"></span><span data-i18n="dtPackets">Suma pakietow</span></div>
-        <div class="metric-value" id="mDtPackets">0</div>
-        <div class="metric-sub" id="mDtPacketsSub">-</div>
+        <div class="metric-title"><span class="ico data"></span><span data-i18n="dtAvg">Srednie transferu</span></div>
+        <div class="metric-value" id="mDtAvgBytes">-</div>
+        <div class="metric-sub" id="mDtAvgDc">-</div>
       </div>
     </div>
 
@@ -1459,7 +1459,10 @@ const i18n = {
     dtCount: "Data Transfer",
     dtDc: "Suma DC",
     dtBytes: "Suma bytes",
-    dtPackets: "Suma pakietow",
+    dtPackets: "Suma pakietow (Data Transfer)",
+    dtAvg: "Srednie transferu",
+    dtAvgBytes: "bytes/zdarzenie",
+    dtAvgDc: "DC/transfer",
     regionLabel: "Region",
     nextBeaconLabel: "Nastepny beacon",
     restartsLabel: "Restarty",
@@ -1527,9 +1530,12 @@ const i18n = {
     witnesses: "Witnesses",
     errors: "Errors",
     dtCount: "Data Transfer",
-    dtDc: "DC total",
-    dtBytes: "Bytes total",
-    dtPackets: "Packets total",
+    dtDc: "Total DC",
+    dtBytes: "Total bytes",
+    dtPackets: "Data Transfer packets",
+    dtAvg: "Transfer averages",
+    dtAvgBytes: "bytes/event",
+    dtAvgDc: "DC/transfer",
     regionLabel: "Region",
     nextBeaconLabel: "Next beacon",
     restartsLabel: "Restarts",
@@ -2124,10 +2130,14 @@ function applySummary(s){
   $("mRx").textContent = s.beacons_rx || 0;
   $("mWit").textContent = s.witnesses || 0;
   $("mErr").textContent = s.errors || 0;
-  $("mDtCount").textContent = s.dt_count || 0;
+  const dtCount = s.dt_count || 0;
   $("mDtDc").textContent = s.dt_dc || 0;
   $("mDtBytes").textContent = fmtBytes(s.dt_bytes || 0);
   $("mDtPackets").textContent = s.dt_packets || 0;
+  const avgBytes = dtCount ? (s.dt_bytes || 0) / dtCount : null;
+  const avgDc = dtCount ? (s.dt_dc || 0) / dtCount : null;
+  $("mDtAvgBytes").textContent = avgBytes !== null ? `${fmtBytes(avgBytes)} ${t("dtAvgBytes")}` : "-";
+  $("mDtAvgDc").textContent = avgDc !== null ? `${fmt(avgDc)} ${t("dtAvgDc")}` : "-";
   $("mWitIgnored").textContent = s.witnesses_ignored || 0;
   $("sRestarts").textContent = s.restarts || 0;
   $("sRegion").textContent = s.region || "-";
@@ -2139,7 +2149,6 @@ function applySummary(s){
   $("mRxSub").textContent = rl;
   $("mWitSub").textContent = rl;
   $("mErrSub").textContent = rl;
-  $("mDtCountSub").textContent = rl;
   $("mDtDcSub").textContent = rl;
   $("mDtBytesSub").textContent = rl;
   $("mDtPacketsSub").textContent = rl;
